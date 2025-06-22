@@ -173,7 +173,6 @@ class ParakeetSTTProcessor(BaseSTT):
 				all_segment_timestamps.extend(adjusted_curr_segments)
 			
 			else:
-				print(' '.join([word.get('word', '') for word in all_word_timestamps]))
 				# For subsequent chunks, find and remove timestamp overlaps
 				remove_word_count = self._find_timestamp_overlap(all_word_timestamps, adjusted_curr_words, i)
 				
@@ -235,17 +234,6 @@ class ParakeetSTTProcessor(BaseSTT):
 
 		return remove_word_count
 	
-	def _format_text_with_timestamps(self, segment_timestamps: List[Dict]) -> str:
-		"""Format text with timestamps."""
-		formatted_parts = []
-		for segment in segment_timestamps:
-			start_time = segment.get('start', 0)
-			end_time = segment.get('end', 0)
-			text = segment.get('segment', '')
-			if text.strip():
-				formatted_parts.append(f"[{start_time:.2f}s-{end_time:.2f}s] {text}")
-		return '\n'.join(formatted_parts)
-	
 	def generate_transcription(self, input_file):
 		"""Generate transcription using Parakeet."""
 		try:
@@ -274,16 +262,13 @@ class ParakeetSTTProcessor(BaseSTT):
 				
 				if not final_result:
 					return None, None
-			
-			text_with_timestamps = self._format_text_with_timestamps(
-				final_result['timestamps'].get('segment', [])
-			)
+
 			transcription_result = {
 				"text": final_result['text'],
 				"language": "",
 				"model": f"{self.type}-{self.model_name}",
 				"duration": duration,
-				"segments": text_with_timestamps,
+				"segments": final_result['timestamps'],
 				"engine": self.type
 			}
 			
