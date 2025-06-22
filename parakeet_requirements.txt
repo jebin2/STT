@@ -1,0 +1,2 @@
+cuda-python>=12.3
+nemo_toolkit[asr]
