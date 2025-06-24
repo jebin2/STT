@@ -195,3 +195,6 @@ cython_debug/
 input.wav
 temp_dir
 *_env
+models
+input.mp4
+input.mkv

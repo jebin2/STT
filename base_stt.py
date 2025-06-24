@@ -18,6 +18,9 @@ class BaseSTT:
 		self.default_language = None
 
 	def reset(self):
+		import torch
+		torch.cuda.empty_cache()
+		torch.cuda.synchronize()
 		if os.path.exists(self.temp_dir):
 			import shutil
 			shutil.rmtree(self.temp_dir)

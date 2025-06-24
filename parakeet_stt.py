@@ -13,11 +13,14 @@ class ParakeetSTTProcessor(BaseSTT):
 	
 	def __init__(self):
 		super().__init__("parakeet")
+		os.environ["TORCH_USE_CUDA_DSA"] = "1"
 		os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+		os.environ["HF_HUB_TIMEOUT"] = "120"
 		self.model_name = "nvidia/parakeet-tdt-0.6b-v2"
 		self.chunk_duration = 300
 		self.chunk_overlap = 5
 		self.sample_rate = 16000
+		self.model_path = "./models/nemo_asr.nemo"
 		self._load_model()
 
 	def _load_model(self):
@@ -28,9 +31,17 @@ class ParakeetSTTProcessor(BaseSTT):
 			import logging
 			nemo_log().set_verbosity(logging.ERROR)
 			print(f"Loading model: {self.model_name}")
-			self.model = nemo_asr.models.ASRModel.from_pretrained(
-				model_name=self.model_name
-			)
+			os.makedirs('./models', exist_ok=True)
+			if os.path.exists(self.model_path):
+				self.model = nemo_asr.models.ASRModel.restore_from(
+					restore_path=self.model_path
+				)
+			else:
+				self.model = nemo_asr.models.ASRModel.from_pretrained(
+					model_name=self.model_name
+				)
+				self.model.save_to("./models/nemo_asr.nemo")
+			self.model = self.model.half()
 			print("Model loaded successfully!")
 		except Exception as e:
 			raise RuntimeError(f"Failed to load model: {str(e)}")
@@ -47,8 +58,7 @@ class ParakeetSTTProcessor(BaseSTT):
 					fps = eval(stream['r_frame_rate'])
 			return duration_in_sec_int, duration_in_sec_float, size, fps
 		except Exception as e:
-			print(f"Error retrieving media metadata: {e}")
-			return None, None, None, None
+			raise ValueError(f"Error retrieving media metadata: {e}")
 		finally:
 			gc.collect()
 
@@ -57,8 +67,7 @@ class ParakeetSTTProcessor(BaseSTT):
 			duration, _, _, _ = self.get_media_metadata(audio_file)
 			return duration
 		except Exception as e:
-			print(f"Error getting audio duration: {e}")
-			return 0
+			raise ValueError(f"Error getting audio duration: {e}")
 	
 	def _split_audio_file(self, audio_file: str) -> List[str]:
 		try:
@@ -94,8 +103,7 @@ class ParakeetSTTProcessor(BaseSTT):
 			print(f"Created {len(chunk_files)} chunks")
 			return chunk_files
 		except Exception as e:
-			print(f"Error splitting audio file: {e}")
-			return []
+			raise ValueError(f"Error splitting audio file: {e}")
 	
 	def _transcribe_single_chunk(self, audio_file: str) -> Optional[Dict[str, Any]]:
 		try:
@@ -120,10 +128,9 @@ class ParakeetSTTProcessor(BaseSTT):
 					'text': output.text,
 					'timestamps': timestamps
 				}
-			return None
+			raise ValueError(f"Error transcribing chunk")
 		except Exception as e:
-			print(f"Error transcribing chunk: {e}")
-			return None
+			raise ValueError(f"Error transcribing chunk: {e}")
 
 	def _merge_chunk_results(self, chunk_results: List[Dict[str, Any]]) -> Dict[str, Any]:
 		"""Merge chunk results by finding and removing overlapping words using timestamp matching."""
@@ -233,6 +240,17 @@ class ParakeetSTTProcessor(BaseSTT):
 				remove_word_count += 1
 
 		return remove_word_count
+
+	def get_segements(self, data):
+		final_seg = []
+		for seg in data["segment"]:
+			final_seg.append({
+				"text": seg["segment"],
+				"start": seg["start"],
+				"end": seg["end"]
+			})
+
+		return final_seg
 	
 	def generate_transcription(self, input_file):
 		"""Generate transcription using Parakeet."""
@@ -268,7 +286,7 @@ class ParakeetSTTProcessor(BaseSTT):
 				"language": "",
 				"model": f"{self.type}-{self.model_name}",
 				"duration": duration,
-				"segments": final_result['timestamps'],
+				"segments": self.get_segements(final_result['timestamps']),
 				"engine": self.type
 			}
 			
@@ -277,5 +295,4 @@ class ParakeetSTTProcessor(BaseSTT):
 			return transcription_result
 			
 		except Exception as e:
-			print(f"Transcription failed: {str(e)}")
-			return None
+			raise ValueError(f"Transcription failed: {str(e)}")
