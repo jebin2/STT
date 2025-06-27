@@ -132,29 +132,62 @@ class ParakeetSTTProcessor(BaseSTT):
 		except Exception as e:
 			raise ValueError(f"Error transcribing chunk: {e}")
 
+	def _get_seg_timestamp(self, all_word_timestamps):
+		# Parameters
+		max_pause_duration = 1.0  # max allowed pause between words in a segment
+
+		# Create segment timestamps from word timestamps
+		all_segment_timestamps = []
+		if all_word_timestamps:
+			start_time = all_word_timestamps[0]['start']
+			end_time = all_word_timestamps[0]['end']
+			words_in_segment = [all_word_timestamps[0]['word']]
+
+			for i in range(1, len(all_word_timestamps)):
+				curr_word = all_word_timestamps[i]
+				prev_word = all_word_timestamps[i - 1]
+
+				pause = curr_word['start'] - prev_word['end']
+
+				if pause <= max_pause_duration:
+					# Continue current segment
+					end_time = curr_word['end']
+					words_in_segment.append(curr_word['word'])
+				else:
+					# Save current segment
+					all_segment_timestamps.append({
+						'start': start_time,
+						'end': end_time,
+						'text': ' '.join(words_in_segment)
+					})
+					# Start a new segment
+					start_time = curr_word['start']
+					end_time = curr_word['end']
+					words_in_segment = [curr_word['word']]
+
+			# Add last segment
+			all_segment_timestamps.append({
+				'start': start_time,
+				'end': end_time,
+				'text': ' '.join(words_in_segment)
+			})
+
+		return all_segment_timestamps
+
+
 	def _merge_chunk_results(self, chunk_results: List[Dict[str, Any]]) -> Dict[str, Any]:
 		"""Merge chunk results by finding and removing overlapping words using timestamp matching."""
-		
-		if not chunk_results:
-			return {'text': '', 'timestamps': {'word': [], 'segment': []}}
-		
+
 		if len(chunk_results) == 1:
-			return chunk_results[0] if chunk_results[0] else {'text': '', 'timestamps': {'word': [], 'segment': []}}
+			return chunk_results
 		
 		all_word_timestamps = []
-		all_segment_timestamps = []
 		
 		# Process each chunk
 		for i, result in enumerate(chunk_results):
-			if not result or 'timestamps' not in result:
-				continue
-			
 			timestamps = result.get('timestamps', {})
 			word_timestamps = timestamps.get('word', [])
 			segment_timestamps = timestamps.get('segment', [])
-			
-			if not word_timestamps:
-				continue
 			
 			# Calculate time offset for this chunk (original audio time)
 			time_offset = i * (self.chunk_duration - self.chunk_overlap)
@@ -177,8 +210,7 @@ class ParakeetSTTProcessor(BaseSTT):
 			# For first chunk, add everything
 			if i == 0:
 				all_word_timestamps.extend(adjusted_curr_words)
-				all_segment_timestamps.extend(adjusted_curr_segments)
-			
+
 			else:
 				# For subsequent chunks, find and remove timestamp overlaps
 				remove_word_count = self._find_timestamp_overlap(all_word_timestamps, adjusted_curr_words, i)
@@ -188,13 +220,13 @@ class ParakeetSTTProcessor(BaseSTT):
 				if remove_word_count > 0:
 					# Skip the overlapping words
 					all_word_timestamps = all_word_timestamps[:-remove_word_count]
+					print(all_word_timestamps)
 
 				# Add remaining timestamps
 				all_word_timestamps.extend(adjusted_curr_words)
 		
 		# Sort all timestamps by start time to ensure proper order
 		all_word_timestamps.sort(key=lambda x: x.get('start', 0))
-		all_segment_timestamps.sort(key=lambda x: x.get('start', 0))
 		
 		# Reconstruct text from word timestamps
 		final_text = ' '.join([word.get('word', '') for word in all_word_timestamps])
@@ -204,7 +236,7 @@ class ParakeetSTTProcessor(BaseSTT):
 			'text': final_text,
 			'timestamps': {
 				'word': all_word_timestamps,
-				'segment': all_segment_timestamps
+				'segment': self._get_seg_timestamp(all_word_timestamps)
 			}
 		}
 
@@ -270,8 +302,8 @@ class ParakeetSTTProcessor(BaseSTT):
 				for i, chunk_file in enumerate(chunk_files):
 					print(f"Processing chunk {i + 1}/{len(chunk_files)}")
 					result = self._transcribe_single_chunk(chunk_file)
-					chunk_results.append(result if result else {'text': '', 'timestamps': {}})
-				
+					chunk_results.append(result)
+
 				final_result = self._merge_chunk_results(chunk_results)
 				
 			else:
