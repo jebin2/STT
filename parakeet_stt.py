@@ -119,9 +119,8 @@ class ParakeetSTTProcessor(BaseSTT):
 				timestamps = {}
 				if hasattr(output, 'timestamp'):
 					timestamps = {
-						'word': output.timestamp.get('word', []),
-						'segment': output.timestamp.get('segment', []),
-						'char': output.timestamp.get('char', [])
+						'word': output.timestamp.get('word'),
+						'segment': self.get_segements(output.timestamp.get('segment'))
 					}
 				
 				return {
@@ -177,10 +176,6 @@ class ParakeetSTTProcessor(BaseSTT):
 
 	def _merge_chunk_results(self, chunk_results: List[Dict[str, Any]]) -> Dict[str, Any]:
 		"""Merge chunk results by finding and removing overlapping words using timestamp matching."""
-
-		if len(chunk_results) == 1:
-			return chunk_results
-		
 		all_word_timestamps = []
 		
 		# Process each chunk
@@ -210,7 +205,6 @@ class ParakeetSTTProcessor(BaseSTT):
 			# For first chunk, add everything
 			if i == 0:
 				all_word_timestamps.extend(adjusted_curr_words)
-
 			else:
 				# For subsequent chunks, find and remove timestamp overlaps
 				remove_word_count = self._find_timestamp_overlap(all_word_timestamps, adjusted_curr_words, i)
@@ -220,7 +214,6 @@ class ParakeetSTTProcessor(BaseSTT):
 				if remove_word_count > 0:
 					# Skip the overlapping words
 					all_word_timestamps = all_word_timestamps[:-remove_word_count]
-					print(all_word_timestamps)
 
 				# Add remaining timestamps
 				all_word_timestamps.extend(adjusted_curr_words)
@@ -275,7 +268,7 @@ class ParakeetSTTProcessor(BaseSTT):
 
 	def get_segements(self, data):
 		final_seg = []
-		for seg in data["segment"]:
+		for seg in data:
 			final_seg.append({
 				"text": seg["segment"],
 				"start": seg["start"],
@@ -305,20 +298,16 @@ class ParakeetSTTProcessor(BaseSTT):
 					chunk_results.append(result)
 
 				final_result = self._merge_chunk_results(chunk_results)
-				
 			else:
 				print("Processing as single file...")
 				final_result = self._transcribe_single_chunk(input_file)
-				
-				if not final_result:
-					return None, None
 
 			transcription_result = {
 				"text": final_result['text'],
 				"language": "",
 				"model": f"{self.type}-{self.model_name}",
 				"duration": duration,
-				"segments": self.get_segements(final_result['timestamps']),
+				"segments": final_result['timestamps'],
 				"engine": self.type
 			}
 			
