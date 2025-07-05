@@ -122,7 +122,7 @@ class BaseSTT:
 		"""
 		try:
 			self.reset()
-			input_file = getattr(args, 'input', None)
+			input_file = args.get('input') if isinstance(args, dict) else getattr(args, 'input', None)
 
 			self.validate_input_file(input_file)
 
