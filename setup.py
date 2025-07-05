@@ -25,7 +25,7 @@ extras_require = {
 	],
 	'parakeet': [
 		'nemo_toolkit[asr]',
-		'cuda-python',
+		'cuda-python>=12.3',
 		'librosa',
 		'soundfile',
 		'typing_extensions',
