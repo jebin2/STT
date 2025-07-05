@@ -72,7 +72,8 @@ def current_env():
 	raise ValueError("Please set env first")
 
 def initiate(args):
-	if not args.model:
+	model = args.get('model') if isinstance(args, dict) else getattr(args, 'model', None)
+	if not model:
 		if current_env() == "openai_env":
 			from .openai import OpenAISTTProcessor as STTEngine
 		elif current_env() == "parakeet_env":
@@ -80,14 +81,14 @@ def initiate(args):
 		elif current_env() == "fasterwhispher_env":
 			from .fasterwhispher import FasterWhispherSTTProcessor as STTEngine
 	else:
-		if args.model == "openai":
+		if model == "openai":
 			from .openai import OpenAISTTProcessor as STTEngine
-		elif args.model == "parakeet":
+		elif model == "parakeet":
 			from .parakeet import ParakeetSTTProcessor as STTEngine
-		elif args.model == "fasterwhispher":
+		elif model == "fasterwhispher":
 			from .fasterwhispher import FasterWhispherSTTProcessor as STTEngine
 
-		check_for_dependency(args.model)
+		check_for_dependency(model)
 
 	global STT_ENGINE
 	if not STT_ENGINE:
