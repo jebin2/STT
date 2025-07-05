@@ -7,6 +7,7 @@ logging.getLogger().setLevel(logging.ERROR)
 import argparse
 import os
 import sys
+import subprocess
 
 STT_ENGINE = None
 os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
@@ -35,6 +36,34 @@ def server_mode(args):
 			print(f"Error in server mode: {e}")
 			break
 
+def check_for_dependency(model):
+	"""
+	Check and install dependencies for the given model if missing.
+	Looks for <model>_requirements.txt file.
+	"""
+	requirements_file_name = f"{model}_requirements.txt"
+
+	# Check if requirements file exists
+	if not os.path.isfile(requirements_file_name):
+		raise FileNotFoundError(f"Requirements file '{requirements_file_name}' not found for model '{model}'.")
+
+	try:
+		print(f"🔍 Checking dependencies for model: {model}...")
+
+		if model == "parakeet":
+			subprocess.check_call(
+				[sys.executable, "-m", "pip", "install", "-r", "parakeet_pre-requirements.txt"]
+			)
+
+		# Use pip to install dependencies from the requirements file
+		subprocess.check_call(
+			[sys.executable, "-m", "pip", "install", "-r", requirements_file_name]
+		)
+		print(f"✅ Dependencies for '{model}' installed successfully.")
+	except subprocess.CalledProcessError as e:
+		print(f"❌ Failed to install dependencies for '{model}': {e}")
+		sys.exit(1)
+
 def current_env():
 	"""Detect current virtual environment."""
 	venv_path = os.environ.get("VIRTUAL_ENV")
@@ -43,10 +72,22 @@ def current_env():
 	raise ValueError("Please set env first")
 
 def initiate(args):
-	if current_env() == "openai_env":
-		from openai_stt import OpenAISTTProcessor as STTEngine
-	elif current_env() == "parakeet_env":
-		from parakeet_stt import ParakeetSTTProcessor as STTEngine
+	if not args.model:
+		if current_env() == "openai_env":
+			from openai_stt import OpenAISTTProcessor as STTEngine
+		elif current_env() == "parakeet_env":
+			from parakeet_stt import ParakeetSTTProcessor as STTEngine
+		elif current_env() == "fasterwhispher_env":
+			from fasterwhispher_stt import FasterWhispherSTTProcessor as STTEngine
+	else:
+		if args.model == "openai":
+			from openai_stt import OpenAISTTProcessor as STTEngine
+		elif args.model == "parakeet":
+			from parakeet_stt import ParakeetSTTProcessor as STTEngine
+		elif args.model == "fasterwhispher":
+			from fasterwhispher_stt import FasterWhispherSTTProcessor as STTEngine
+
+		check_for_dependency(args.model)
 
 	global STT_ENGINE
 	if not STT_ENGINE:
@@ -67,6 +108,10 @@ def main():
 	)
 	parser.add_argument(
 		"--input", 
+		help="Input audio/video file path"
+	)
+	parser.add_argument(
+		"--model",
 		help="Input audio/video file path"
 	)
 	

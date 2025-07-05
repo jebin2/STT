@@ -198,3 +198,5 @@ temp_dir
 models
 input.mp4
 input.mkv
+*_env
+hf_download
