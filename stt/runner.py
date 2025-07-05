@@ -88,7 +88,7 @@ def initiate(args):
 		elif model == "fasterwhispher":
 			from .fasterwhispher import FasterWhispherSTTProcessor as STTEngine
 
-		check_for_dependency(model)
+		# check_for_dependency(model)
 
 	global STT_ENGINE
 	if not STT_ENGINE:
