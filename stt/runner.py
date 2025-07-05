@@ -10,7 +10,7 @@ import sys
 import subprocess
 
 STT_ENGINE = None
-os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), '../hf_download')))
+# os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
 
 def server_mode(args):
 	"""Run in server mode - read commands from stdin."""
