@@ -6,7 +6,7 @@ import os
 import librosa
 import soundfile as sf
 import ffmpeg
-from base_stt import BaseSTT
+from .base import BaseSTT
 
 class ParakeetSTTProcessor(BaseSTT):
 	"""Enhanced Speech-to-Text converter with smart overlap handling."""

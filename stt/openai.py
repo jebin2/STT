@@ -1,5 +1,5 @@
 import torch
-from base_stt import BaseSTT
+from .base import BaseSTT
 
 class OpenAISTTProcessor(BaseSTT):
 	"""Speech-to-text processor using OpenAI Whisper."""

@@ -10,7 +10,7 @@ import sys
 import subprocess
 
 STT_ENGINE = None
-os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), './hf_download')))
+os.environ['HF_HOME'] = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), '../hf_download')))
 
 def server_mode(args):
 	"""Run in server mode - read commands from stdin."""
@@ -74,18 +74,18 @@ def current_env():
 def initiate(args):
 	if not args.model:
 		if current_env() == "openai_env":
-			from openai_stt import OpenAISTTProcessor as STTEngine
+			from .openai import OpenAISTTProcessor as STTEngine
 		elif current_env() == "parakeet_env":
-			from parakeet_stt import ParakeetSTTProcessor as STTEngine
+			from .parakeet import ParakeetSTTProcessor as STTEngine
 		elif current_env() == "fasterwhispher_env":
-			from fasterwhispher_stt import FasterWhispherSTTProcessor as STTEngine
+			from .fasterwhispher import FasterWhispherSTTProcessor as STTEngine
 	else:
 		if args.model == "openai":
-			from openai_stt import OpenAISTTProcessor as STTEngine
+			from .openai import OpenAISTTProcessor as STTEngine
 		elif args.model == "parakeet":
-			from parakeet_stt import ParakeetSTTProcessor as STTEngine
+			from .parakeet import ParakeetSTTProcessor as STTEngine
 		elif args.model == "fasterwhispher":
-			from fasterwhispher_stt import FasterWhispherSTTProcessor as STTEngine
+			from .fasterwhispher import FasterWhispherSTTProcessor as STTEngine
 
 		check_for_dependency(args.model)
 
