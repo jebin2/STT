@@ -199,3 +199,4 @@ models
 input.mp4
 input.mkv
 *_env
+stt/temp_dir

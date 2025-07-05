@@ -11,7 +11,7 @@ class BaseSTT:
 	def __init__(self, type):
 		self.type = type
 		self.input_file = None
-		self.temp_dir = "temp_dir"
+		self.temp_dir = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), "./temp_dir")))
 		self.output_text_file = f"{self.temp_dir}/output_transcription.txt"
 		self.output_json_file = f"{self.temp_dir}/output_transcription.json"
 		self.model = None
