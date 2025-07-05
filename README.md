@@ -77,7 +77,7 @@ The server will process each file sequentially. Press `Ctrl+C` to exit.
 
 ## Supported Engines
 
-| Engine Name | `--model` argument | Notes |
+| Engine Name | argument `--model` | Notes |
 | :--- | :--- |:---|
 | OpenAI Whisper | `openai` | The official Whisper `large-v3-turbo` model. |
 | Faster-Whisper | `fasterwhisper` | A faster, optimized implementation of Whisper (`base` model). GPU recommended. |
