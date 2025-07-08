@@ -65,25 +65,18 @@ class BaseSTT:
 		except Exception as e:
 			print(f"⚠️ English audio not found, falling back to default audio stream. Reason: {e}")
 
-			try:
-				# Fallback: extract default audio stream (usually stream index 0:1)
-				ffmpeg.input(video_path).output(
-					temp_audio_path,
-					format='wav',
-					acodec='pcm_s16le',
-					ac=1,
-					ar=16000,
-					**{'map': '0:a:0'}  # fallback to first audio stream
-				).overwrite_output().run()
+			# Fallback: extract default audio stream (usually stream index 0:1)
+			ffmpeg.input(video_path).output(
+				temp_audio_path,
+				format='wav',
+				acodec='pcm_s16le',
+				ac=1,
+				ar=16000,
+				**{'map': '0:a:0'}  # fallback to first audio stream
+			).overwrite_output().run()
 
-				print(f"✅ Fallback audio extracted to: {temp_audio_path}")
-				return temp_audio_path
-
-			except Exception as fallback_error:
-				print(f"❌ Failed to extract any audio: {fallback_error}")
-				return None
-			finally:
-				gc.collect()
+			print(f"✅ Fallback audio extracted to: {temp_audio_path}")
+			return temp_audio_path
 
 	def save_transcription_results(self, result):
 		"""Save transcription results to files.
@@ -94,22 +87,17 @@ class BaseSTT:
 		Returns:
 			True if successful, False otherwise
 		"""
-		try:
-			# Save text output
-			with open(self.output_text_file, 'w', encoding='utf-8') as f:
-				f.write(result["text"])
-			print(f"Text transcription saved as {self.output_text_file}")
-			
-			# Save JSON output
-			with open(self.output_json_file, 'w', encoding='utf-8') as f:
-				json.dump(result, f, indent=4, ensure_ascii=False)
-			print(f"JSON transcription saved as {self.output_json_file}")
-			
-			return True
-			
-		except Exception as e:
-			print(f"Error saving transcription results: {e}")
-			return False
+		# Save text output
+		with open(self.output_text_file, 'w', encoding='utf-8') as f:
+			f.write(result["text"])
+		print(f"Text transcription saved as {self.output_text_file}")
+		
+		# Save JSON output
+		with open(self.output_json_file, 'w', encoding='utf-8') as f:
+			json.dump(result, f, indent=4, ensure_ascii=False)
+		print(f"JSON transcription saved as {self.output_json_file}")
+		
+		return True
 
 	def transcribe(self, args):
 		"""Main transcription method to be implemented by subclasses.
@@ -120,38 +108,33 @@ class BaseSTT:
 		Returns:
 			Dictionary with transcription results
 		"""
-		try:
-			self.reset()
-			input_file = args.get('input') if isinstance(args, dict) else getattr(args, 'input', None)
+		self.reset()
+		input_file = args.get('input') if isinstance(args, dict) else getattr(args, 'input', None)
 
-			self.validate_input_file(input_file)
+		self.validate_input_file(input_file)
 
-			if self._is_video_file(input_file):
-				print(f"Detected video file: {input_file}")
-				audio_file_to_process = self._extract_audio_from_video(input_file)
-				if not audio_file_to_process:
-					return None, None
+		if self._is_video_file(input_file):
+			print(f"Detected video file: {input_file}")
+			audio_file_to_process = self._extract_audio_from_video(input_file)
+			if not audio_file_to_process:
+				return None, None
 
-			elif self._is_audio_file(input_file):
-				print(f"Detected audio file: {input_file}")
-				audio_file_to_process = input_file
+		elif self._is_audio_file(input_file):
+			print(f"Detected audio file: {input_file}")
+			audio_file_to_process = input_file
 
-			else:
-				raise ValueError("Error: Unsupported file format, Supported formats: .mp4, .avi, .mov, .mkv, .webm, .wav, .flac, .mp3, .m4a, .aac")
+		else:
+			raise ValueError("Error: Unsupported file format, Supported formats: .mp4, .avi, .mov, .mkv, .webm, .wav, .flac, .mp3, .m4a, .aac")
 
-			result = self.generate_transcription(audio_file_to_process)
-			
-			if not result:
-				print("Error: No transcription generated")
-				return False
-
-			success = self.save_transcription_results(result)
-			
-			return result if success else False
-			
-		except Exception as e:
-			print(f"Error in transcribe_audio: {e} {traceback.format_exc()}")
+		result = self.generate_transcription(audio_file_to_process)
+		
+		if not result:
+			print("Error: No transcription generated")
 			return False
+
+		success = self.save_transcription_results(result)
+		
+		return result if success else False
 
 	def generate_transcription(self, input_file):
 		"""Generate transcription - to be implemented by subclasses."""

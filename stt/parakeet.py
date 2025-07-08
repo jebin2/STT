@@ -24,112 +24,95 @@ class ParakeetSTTProcessor(BaseSTT):
 		self._load_model()
 
 	def _load_model(self):
-		try:
-			print("Initializing Nemo ASR...")
-			import nemo.collections.asr as nemo_asr
-			from nemo.utils.nemo_logging import Logger as nemo_log
-			import logging
-			nemo_log().set_verbosity(logging.ERROR)
-			print(f"Loading model: {self.model_name}")
-			os.makedirs('./models', exist_ok=True)
-			if os.path.exists(self.model_path):
-				self.model = nemo_asr.models.ASRModel.restore_from(
-					restore_path=self.model_path
-				)
-			else:
-				self.model = nemo_asr.models.ASRModel.from_pretrained(
-					model_name=self.model_name
-				)
-				self.model.save_to("./models/nemo_asr.nemo")
-			self.model = self.model.half()
-			print("Model loaded successfully!")
-		except Exception as e:
-			raise RuntimeError(f"Failed to load model: {str(e)}")
+		print("Initializing Nemo ASR...")
+		import nemo.collections.asr as nemo_asr
+		from nemo.utils.nemo_logging import Logger as nemo_log
+		import logging
+		nemo_log().set_verbosity(logging.ERROR)
+		print(f"Loading model: {self.model_name}")
+		os.makedirs('./models', exist_ok=True)
+		if os.path.exists(self.model_path):
+			self.model = nemo_asr.models.ASRModel.restore_from(
+				restore_path=self.model_path
+			)
+		else:
+			self.model = nemo_asr.models.ASRModel.from_pretrained(
+				model_name=self.model_name
+			)
+			self.model.save_to("./models/nemo_asr.nemo")
+		self.model = self.model.half()
+		print("Model loaded successfully!")
 
 	def get_media_metadata(self, file_path):
-		try:
-			probe = ffmpeg.probe(file_path, v='error', select_streams='v:0', show_entries='format=duration,streams')
-			duration_in_sec_float = float(probe['format']['duration'])
-			duration_in_sec_int = int(duration_in_sec_float)
-			size = int(os.path.getsize(file_path) // (1024 * 1024))
-			fps = None
-			for stream in probe['streams']:
-				if stream['codec_type'] == 'video':
-					fps = eval(stream['r_frame_rate'])
-			return duration_in_sec_int, duration_in_sec_float, size, fps
-		except Exception as e:
-			raise ValueError(f"Error retrieving media metadata: {e}")
-		finally:
-			gc.collect()
+		probe = ffmpeg.probe(file_path, v='error', select_streams='v:0', show_entries='format=duration,streams')
+		duration_in_sec_float = float(probe['format']['duration'])
+		duration_in_sec_int = int(duration_in_sec_float)
+		size = int(os.path.getsize(file_path) // (1024 * 1024))
+		fps = None
+		for stream in probe['streams']:
+			if stream['codec_type'] == 'video':
+				fps = eval(stream['r_frame_rate'])
+		return duration_in_sec_int, duration_in_sec_float, size, fps
 
 	def _get_audio_duration(self, audio_file: str) -> float:
-		try:
-			duration, _, _, _ = self.get_media_metadata(audio_file)
-			return duration
-		except Exception as e:
-			raise ValueError(f"Error getting audio duration: {e}")
+		duration, _, _, _ = self.get_media_metadata(audio_file)
+		return duration
 	
 	def _split_audio_file(self, audio_file: str) -> List[str]:
-		try:
-			audio, sr = librosa.load(audio_file, sr=self.sample_rate)
-			total_duration = len(audio) / sr
-			
-			print(f"Audio duration: {total_duration:.2f} seconds")
-			print(f"Splitting into {self.chunk_duration}s chunks...")
-			
-			chunk_files = []
-			chunk_samples = int(self.chunk_duration * sr)
-			overlap_samples = int(self.chunk_overlap * sr)
+		audio, sr = librosa.load(audio_file, sr=self.sample_rate)
+		total_duration = len(audio) / sr
+		
+		print(f"Audio duration: {total_duration:.2f} seconds")
+		print(f"Splitting into {self.chunk_duration}s chunks...")
+		
+		chunk_files = []
+		chunk_samples = int(self.chunk_duration * sr)
+		overlap_samples = int(self.chunk_overlap * sr)
 
-			chunk_count = 0
-			start_sample = 0
+		chunk_count = 0
+		start_sample = 0
+		
+		while start_sample < len(audio):
+			end_sample = min(start_sample + chunk_samples, len(audio))
+			chunk_audio = audio[start_sample:end_sample]
 			
-			while start_sample < len(audio):
-				end_sample = min(start_sample + chunk_samples, len(audio))
-				chunk_audio = audio[start_sample:end_sample]
-				
-				chunk_file = os.path.join(self.temp_dir, f"chunk_{chunk_count:04d}.wav")
-				sf.write(chunk_file, chunk_audio, sr)
-				chunk_files.append(chunk_file)
-				
-				print(f"Created chunk {chunk_count + 1}: {start_sample/sr:.2f}s - {end_sample/sr:.2f}s")
-				
-				start_sample = end_sample - overlap_samples
-				chunk_count += 1
-				
-				if end_sample >= len(audio):
-					break
+			chunk_file = os.path.join(self.temp_dir, f"chunk_{chunk_count:04d}.wav")
+			sf.write(chunk_file, chunk_audio, sr)
+			chunk_files.append(chunk_file)
 			
-			print(f"Created {len(chunk_files)} chunks")
-			return chunk_files
-		except Exception as e:
-			raise ValueError(f"Error splitting audio file: {e}")
+			print(f"Created chunk {chunk_count + 1}: {start_sample/sr:.2f}s - {end_sample/sr:.2f}s")
+			
+			start_sample = end_sample - overlap_samples
+			chunk_count += 1
+			
+			if end_sample >= len(audio):
+				break
+		
+		print(f"Created {len(chunk_files)} chunks")
+		return chunk_files
 	
 	def _transcribe_single_chunk(self, audio_file: str) -> Optional[Dict[str, Any]]:
-		try:
-			outputs = self.model.transcribe(
-				[audio_file],
-				batch_size=1,
-				timestamps=True
-			)
+		outputs = self.model.transcribe(
+			[audio_file],
+			batch_size=1,
+			timestamps=True
+		)
+		
+		if outputs and len(outputs) > 0:
+			output = outputs[0]
 			
-			if outputs and len(outputs) > 0:
-				output = outputs[0]
-				
-				timestamps = {}
-				if hasattr(output, 'timestamp'):
-					timestamps = {
-						'word': output.timestamp.get('word'),
-						'segment': self.get_segements(output.timestamp.get('segment'))
-					}
-				
-				return {
-					'text': output.text,
-					'timestamps': timestamps
+			timestamps = {}
+			if hasattr(output, 'timestamp'):
+				timestamps = {
+					'word': output.timestamp.get('word'),
+					'segment': self.get_segements(output.timestamp.get('segment'))
 				}
-			raise ValueError(f"Error transcribing chunk")
-		except Exception as e:
-			raise ValueError(f"Error transcribing chunk: {e}")
+			
+			return {
+				'text': output.text,
+				'timestamps': timestamps
+			}
+		raise Exception(f"Error transcribing chunk")
 
 	def _get_seg_timestamp(self, all_word_timestamps):
 		# Parameters
@@ -279,41 +262,37 @@ class ParakeetSTTProcessor(BaseSTT):
 	
 	def generate_transcription(self, input_file):
 		"""Generate transcription using Parakeet."""
-		try:
-			print(f"Transcribing: {input_file}")
-			duration = self._get_audio_duration(input_file)
-			print(f"Processing audio duration: {duration:.2f} seconds")
+		print(f"Transcribing: {input_file}")
+		duration = self._get_audio_duration(input_file)
+		print(f"Processing audio duration: {duration:.2f} seconds")
+		
+		if duration > self.chunk_duration:
+			print(f"Audio exceeds {self.chunk_duration}s, using enhanced chunking with overlap handling...")
+			chunk_files = self._split_audio_file(input_file)
 			
-			if duration > self.chunk_duration:
-				print(f"Audio exceeds {self.chunk_duration}s, using enhanced chunking with overlap handling...")
-				chunk_files = self._split_audio_file(input_file)
-				
-				if not chunk_files:
-					return None, None
-				
-				chunk_results = []
-				for i, chunk_file in enumerate(chunk_files):
-					print(f"Processing chunk {i + 1}/{len(chunk_files)}")
-					result = self._transcribe_single_chunk(chunk_file)
-					chunk_results.append(result)
+			if not chunk_files:
+				return None, None
+			
+			chunk_results = []
+			for i, chunk_file in enumerate(chunk_files):
+				print(f"Processing chunk {i + 1}/{len(chunk_files)}")
+				result = self._transcribe_single_chunk(chunk_file)
+				chunk_results.append(result)
 
-				final_result = self._merge_chunk_results(chunk_results)
-			else:
-				print("Processing as single file...")
-				final_result = self._transcribe_single_chunk(input_file)
+			final_result = self._merge_chunk_results(chunk_results)
+		else:
+			print("Processing as single file...")
+			final_result = self._transcribe_single_chunk(input_file)
 
-			transcription_result = {
-				"text": final_result['text'],
-				"language": "",
-				"model": f"{self.type}-{self.model_name}",
-				"duration": duration,
-				"segments": final_result['timestamps'],
-				"engine": self.type
-			}
-			
-			print(f"Transcription completed successfully!")
-			
-			return transcription_result
-			
-		except Exception as e:
-			raise ValueError(f"Transcription failed: {str(e)}")
+		transcription_result = {
+			"text": final_result['text'],
+			"language": "",
+			"model": f"{self.type}-{self.model_name}",
+			"duration": duration,
+			"segments": final_result['timestamps'],
+			"engine": self.type
+		}
+		
+		print(f"Transcription completed successfully!")
+		
+		return transcription_result

@@ -17,24 +17,19 @@ def server_mode(args):
 	global STT_ENGINE
 	
 	while True:
-		try:
-			input_line = sys.stdin.readline().strip()
-			if not input_line:
-				break
-			
-			args.input = input_line
-
-			result = initiate(args)
-			
-			if result:
-				print(f"SUCCESS: {args.input}")
-			else:
-				print(f"ERROR: {args.input}")
-			sys.stdout.flush()
-
-		except Exception as e:
-			print(f"Error in server mode: {e}")
+		input_line = sys.stdin.readline().strip()
+		if not input_line:
 			break
+		
+		args.input = input_line
+
+		result = initiate(args)
+		
+		if result:
+			print(f"SUCCESS: {args.input}")
+		else:
+			print(f"ERROR: {args.input}")
+		sys.stdout.flush()
 
 def check_for_dependency(model):
 	"""
