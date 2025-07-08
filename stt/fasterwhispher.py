@@ -47,7 +47,7 @@ class FasterWhispherSTTProcessor(BaseSTT):
 			# Add word-level data
 			for w in seg.words:
 				word_array.append({
-					"word": w.word,
+					"word": w.word.strip(),
 					"start": w.start,
 					"end": w.end,
 					"probability": w.probability
