@@ -27,8 +27,8 @@ class FasterWhispherSTTProcessor(BaseSTT):
 			"word_timestamps":True,
 			"log_progress": True
 		}
-		
-		segments, info = self.model.transcribe(input_file, **options)
+		with torch.inference_mode():
+			segments, info = self.model.transcribe(input_file, **options)
 		full_text = ""
 		segment_array = []
 		word_array = []

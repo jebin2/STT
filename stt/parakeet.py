@@ -1,7 +1,7 @@
 import re
 from typing import Optional, Dict, Any, List
 
-import gc
+import torch
 import os
 import librosa
 import soundfile as sf
@@ -271,10 +271,11 @@ class ParakeetSTTProcessor(BaseSTT):
 				return None, None
 			
 			chunk_results = []
-			for i, chunk_file in enumerate(chunk_files):
-				print(f"Processing chunk {i + 1}/{len(chunk_files)}")
-				result = self._transcribe_single_chunk(chunk_file)
-				chunk_results.append(result)
+			with torch.inference_mode():
+				for i, chunk_file in enumerate(chunk_files):
+					print(f"Processing chunk {i + 1}/{len(chunk_files)}")
+					result = self._transcribe_single_chunk(chunk_file)
+					chunk_results.append(result)
 
 			final_result = self._merge_chunk_results(chunk_results)
 		else:
