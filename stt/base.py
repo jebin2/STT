@@ -9,6 +9,9 @@ class BaseSTT:
 	"""Base class for speech-to-text implementations"""
 	
 	def __init__(self, type):
+		os.environ["TORCH_USE_CUDA_DSA"] = "1"
+		os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+		os.environ["HF_HUB_TIMEOUT"] = "120"
 		self.type = type
 		self.input_file = None
 		self.temp_dir = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), "./temp_dir")))

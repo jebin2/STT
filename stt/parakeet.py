@@ -13,9 +13,6 @@ class ParakeetSTTProcessor(BaseSTT):
 	
 	def __init__(self):
 		super().__init__("parakeet")
-		os.environ["TORCH_USE_CUDA_DSA"] = "1"
-		os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-		os.environ["HF_HUB_TIMEOUT"] = "120"
 		self.model_name = "nvidia/parakeet-tdt-0.6b-v2"
 		self.chunk_duration = 300
 		self.chunk_overlap = 5
