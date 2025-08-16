@@ -13,7 +13,7 @@ class ParakeetSTTProcessor(BaseSTT):
 	
 	def __init__(self):
 		super().__init__("parakeet")
-		self.model_name = "nvidia/parakeet-tdt-0.6b-v2"
+		self.model_name = "nvidia/parakeet-tdt-0.6b-v3"
 		self.chunk_duration = 300
 		self.chunk_overlap = 5
 		self.sample_rate = 16000
