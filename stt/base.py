@@ -1,14 +1,24 @@
 from pathlib import Path
 import os
 import json
-import traceback
+import common
 import ffmpeg
 import gc
+
+from dotenv import load_dotenv
+import os
+if os.path.exists(".env"):
+    print("Loaded load_dotenv")
+    load_dotenv()
 
 class BaseSTT:
 	"""Base class for speech-to-text implementations"""
 	
 	def __init__(self, type):
+		if os.getenv("USE_CPU_IF_POSSIBLE", None):
+			self.device = "cpu"
+		else:
+			self.device = "cuda" if common.is_gpu_available() else "cpu"
 		os.environ["TORCH_USE_CUDA_DSA"] = "1"
 		os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 		os.environ["HF_HUB_TIMEOUT"] = "120"

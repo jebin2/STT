@@ -4,3 +4,4 @@ typing_extensions
 librosa
 soundfile
 ffmpeg-python
+python-dotenv

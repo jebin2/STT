@@ -1,3 +1,4 @@
 faster-whisper
 torch
 ffmpeg-python
+python-dotenv

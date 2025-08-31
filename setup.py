@@ -18,10 +18,12 @@ BASE_DEPS = [
 # This allows users to install only what they need, e.g., pip install .[openai]
 extras_require = {
 	'openai': [
-		'openai-whisper>=20231117'
+		'openai-whisper>=20231117',
+		'python-dotenv'
 	],
 	'fasterwhisper': [
-		'faster-whisper'
+		'faster-whisper',
+		'python-dotenv'
 	],
 	'parakeet': [
 		'nemo_toolkit[asr]',
@@ -29,6 +31,7 @@ extras_require = {
 		'librosa',
 		'soundfile',
 		'typing_extensions',
+		'python-dotenv'
 	],
 }
 
@@ -42,7 +45,7 @@ setup(
 	name="stt-runner",
 	version="1.0.0",
 	author="Jebin Einstein",
-	author_email="jebineinstein@gmail.com",
+	author_email="jebin@gmail.com",
 	description="A flexible, multi-engine Speech-to-Text runner",
 	long_description=long_description,
 	long_description_content_type='text/markdown',

@@ -7,7 +7,6 @@ class FasterWhispherSTTProcessor(BaseSTT):
 	def __init__(self, model_name = "base", device=None):
 		super().__init__("fasterwhispher")
 		self.model_name = model_name
-		self.device = device or "cuda" if torch.cuda.is_available() else "cpu"
 		self._load_model()
 
 	def _load_model(self):

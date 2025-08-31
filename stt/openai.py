@@ -7,7 +7,6 @@ class OpenAISTTProcessor(BaseSTT):
 	def __init__(self):
 		super().__init__("openai")
 		self.model_name = "large-v3-turbo"
-		self.device = "cuda" if torch.cuda.is_available() else "cpu"
 		self._load_model()
 
 	def _load_model(self):

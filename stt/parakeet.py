@@ -7,6 +7,7 @@ import librosa
 import soundfile as sf
 import ffmpeg
 from .base import BaseSTT
+import common
 
 class ParakeetSTTProcessor(BaseSTT):
 	"""Enhanced Speech-to-Text converter with smart overlap handling."""
@@ -37,7 +38,13 @@ class ParakeetSTTProcessor(BaseSTT):
 				model_name=self.model_name
 			)
 			self.model.save_to("./models/nemo_asr.nemo")
-		self.model = self.model.half()
+
+		# Force device
+		self.model = self.model.to(self.device)
+
+		# FP16 only on GPU
+		if self.device.startswith("cuda"):
+			self.model = self.model.half()
 		print("Model loaded successfully!")
 
 	def get_media_metadata(self, file_path):
