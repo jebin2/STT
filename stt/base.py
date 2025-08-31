@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 import json
-import common
+from . import common
 import ffmpeg
 import gc
 
