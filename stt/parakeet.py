@@ -30,16 +30,15 @@ class ParakeetSTTProcessor(BaseSTT):
 		os.makedirs('./models', exist_ok=True)
 		if os.path.exists(self.model_path):
 			self.model = nemo_asr.models.ASRModel.restore_from(
-				restore_path=self.model_path
+				restore_path=self.model_path,
+        		map_location=self.device
 			)
 		else:
 			self.model = nemo_asr.models.ASRModel.from_pretrained(
-				model_name=self.model_name
+				model_name=self.model_name,
+        		map_location=self.device
 			)
 			self.model.save_to("./models/nemo_asr.nemo")
-
-		# Force device
-		self.model = self.model.to(self.device)
 
 		# FP16 only on GPU
 		if self.device.startswith("cuda"):

@@ -15,10 +15,7 @@ class BaseSTT:
 	"""Base class for speech-to-text implementations"""
 	
 	def __init__(self, type):
-		if os.getenv("USE_CPU_IF_POSSIBLE", None):
-			self.device = "cpu"
-		else:
-			self.device = "cuda" if common.is_gpu_available() else "cpu"
+		self.device = common.get_device()
 		os.environ["TORCH_USE_CUDA_DSA"] = "1"
 		os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 		os.environ["HF_HUB_TIMEOUT"] = "120"
@@ -31,9 +28,10 @@ class BaseSTT:
 		self.default_language = None
 
 	def reset(self):
-		import torch
-		torch.cuda.empty_cache()
-		torch.cuda.synchronize()
+		if self.device == "cuda":
+			import torch
+			torch.cuda.empty_cache()
+			torch.cuda.synchronize()
 		if os.path.exists(self.temp_dir):
 			import shutil
 			shutil.rmtree(self.temp_dir)
@@ -161,8 +159,8 @@ class BaseSTT:
 				del self.model
 				gc.collect()
 				try:
-					import torch
-					if torch.cuda.is_available():
+					if self.device == "cuda":
+						import torch
 						torch.cuda.empty_cache()
 						torch.cuda.ipc_collect()
 				except ImportError:

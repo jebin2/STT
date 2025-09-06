@@ -88,12 +88,13 @@ def manage_gpu(size_gb: float = 0, gpu_index: int = 0, action: str = "check"):
 
         if action == "clear_cache":
             try:
-                import torch
                 gc.collect()
                 gc.collect()
-                torch.cuda.empty_cache()
-                torch.cuda.reset_peak_memory_stats()
-                torch.cuda.synchronize()
+                if get_device() == "cuda":
+                    import torch
+                    torch.cuda.empty_cache()
+                    torch.cuda.reset_peak_memory_stats()
+                    torch.cuda.synchronize()
                 time.sleep(1)
                 print("\n🧹 Cleared PyTorch CUDA cache")
             except ImportError:
@@ -133,3 +134,9 @@ def is_gpu_available(verbose=True):
                 print("CUDA detected but busy/unavailable. Please CPU.")
             return False
         raise  # re-raise if it's some other unexpected error
+
+def get_device(is_vision=False):
+    if not is_vision and os.getenv("USE_CPU_IF_POSSIBLE", None):
+        return "cpu"
+    else:
+        return "cuda" if is_gpu_available() else "cpu"
