@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Whisper Transcription</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .progress-container {
+            width: 100%;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            height: 30px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+
+        .audio-container {
+            margin: 20px 0;
+            display: none;
+        }
+
+        audio {
+            width: 100%;
+            border-radius: 8px;
+        }
+
+        .transcription-box {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 150px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+        }
+
+        .transcription-box:empty::before {
+            content: 'Transcription will appear here...';
+            color: #adb5bd;
+            font-style: italic;
+        }
+
+        .recording-indicator {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .recording-indicator.active {
+            display: flex;
+        }
+
+        .recording-dot {
+            width: 12px;
+            height: 12px;
+            background: #dc3545;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .info-box h3 {
+            margin-bottom: 8px;
+            color: #1976D2;
+        }
+
+        .info-box p {
+            color: #555;
+            line-height: 1.5;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🎙️ Offline Whisper Transcription</h1>
+        <p class="subtitle">Powered by Transformers.js - Runs completely in your browser</p>
+
+        <div id="status" class="status loading">Loading model... This may take a minute on first load.</div>
+
+        <div class="info-box">
+            <h3>How to use:</h3>
+            <p>1. Wait for the model to load (first time only)<br>
+                2. Choose an audio file OR record your voice<br>
+                3. Wait for transcription to complete</p>
+        </div>
+
+        <div class="recording-indicator" id="recording-indicator">
+            <div class="recording-dot"></div>
+            <span>Recording in progress...</span>
+        </div>
+
+        <div class="controls">
+            <div class="file-input-wrapper">
+                <input type="file" id="audio-file" accept="audio/*">
+                <label for="audio-file" class="file-input-label">📁 Choose Audio File</label>
+            </div>
+            <button id="start-recording" class="btn-primary" disabled>🎤 Start Recording</button>
+            <button id="stop-recording" class="btn-danger" disabled>⏹️ Stop Recording</button>
+        </div>
+
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar" id="progress-bar">0%</div>
+        </div>
+
+        <div class="audio-container" id="audio-container">
+            <audio id="audio-player" controls></audio>
+        </div>
+
+        <h3 style="margin: 20px 0 10px 0; color: #333;">Transcription:</h3>
+        <div id="transcription-output" class="transcription-box"></div>
+    </div>
+
+    <script type="module">
+        import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+        let transcriber;
+        let mediaRecorder;
+        let audioChunks = [];
+        let isModelLoaded = false;
+
+        const statusEl = document.getElementById('status');
+        const transcriptionEl = document.getElementById('transcription-output');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const audioPlayer = document.getElementById('audio-player');
+        const audioContainer = document.getElementById('audio-container');
+        const startRecordingBtn = document.getElementById('start-recording');
+        const stopRecordingBtn = document.getElementById('stop-recording');
+        const recordingIndicator = document.getElementById('recording-indicator');
+
+        function updateStatus(message, type = 'loading') {
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function updateProgress(percent, message = '') {
+            progressContainer.style.display = 'block';
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = message || `${Math.round(percent)}%`;
+        }
+
+        function hideProgress() {
+            progressContainer.style.display = 'none';
+        }
+
+        async function loadModel() {
+            try {
+                updateStatus('Loading Whisper model... (This happens once, then it\'s cached)', 'loading');
+
+                const modelFiles = new Map();
+                const totalFilesToLoad = 8;
+
+                transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+                    progress_callback: (progress) => {
+                        modelFiles.set(progress.file, progress.progress);
+                        let totalProgress = 0;
+                        for (const fileProgress of modelFiles.values()) {
+                            totalProgress += fileProgress;
+                        }
+                        const overallPercent = (totalProgress / totalFilesToLoad) * 100;
+                        updateProgress(overallPercent, `Loading model: ${progress.file}`);
+                    }
+                });
+
+                isModelLoaded = true;
+                updateProgress(100, "Model loaded!");
+                await new Promise(resolve => setTimeout(resolve, 500));
+                hideProgress();
+                updateStatus('✅ Model loaded! Ready to transcribe.', 'ready');
+                startRecordingBtn.disabled = false;
+                console.log('Model loaded successfully');
+            } catch (error) {
+                console.error('Error loading model:', error);
+                updateStatus('❌ Error loading model: ' + error.message, 'error');
+            }
+        }
+
+        async function resampleAudio(audioData, originalSampleRate, targetSampleRate, progressCallback) {
+            const resampleRatio = targetSampleRate / originalSampleRate;
+            const newLength = Math.round(audioData.length * resampleRatio);
+            const resampled = new Float32Array(newLength);
+            const chunkSize = 100000;
+
+            for (let i = 0; i < newLength; i += chunkSize) {
+                const end = Math.min(i + chunkSize, newLength);
+                for (let j = i; j < end; j++) {
+                    const srcIndex = j / resampleRatio;
+                    const srcIndexFloor = Math.floor(srcIndex);
+                    const srcIndexCeil = Math.min(srcIndexFloor + 1, audioData.length - 1);
+                    const fraction = srcIndex - srcIndexFloor;
+                    resampled[j] = audioData[srcIndexFloor] * (1 - fraction) + audioData[srcIndexCeil] * fraction;
+                }
+
+                if (progressCallback) {
+                    const overallProgress = 10 + (i / newLength) * 10;
+                    progressCallback(overallProgress, `Resampling audio... ${Math.round((i / newLength) * 100)}%`);
+                }
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            return resampled;
+        }
+
+        async function transcribeAudio(audioSource, progressCallback = null) {
+            if (!isModelLoaded) {
+                updateStatus('Please wait for the model to load first.', 'error');
+                return;
+            }
+
+            try {
+                updateStatus('🔄 Transcribing audio...', 'loading');
+                updateProgress(0, 'Processing audio...');
+                transcriptionEl.textContent = '';
+
+                const notify = (data) => {
+                    if (progressCallback && typeof progressCallback === 'function') {
+                        progressCallback(data);
+                    }
+                };
+
+                notify({ status: 'started', progress: 0 });
+
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioContext.decodeAudioData(audioSource);
+                let audioData = audioBuffer.getChannelData(0);
+
+                if (audioBuffer.sampleRate !== 16000) {
+                    notify({ status: 'resampling', progress: 10 });
+                    audioData = await resampleAudio(audioData, audioBuffer.sampleRate, 16000, updateProgress);
+                }
+
+                const audioDuration = audioData.length / 16000;
+                updateProgress(20, `Audio duration: ${audioDuration.toFixed(1)}s`);
+                notify({ status: 'processing', progress: 20, duration: audioDuration });
+
+                const chunkLength = 30;
+                const strideLength = 5;
+                const samplesPerChunk = chunkLength * 16000;
+                const strideInSamples = strideLength * 16000;
+                const totalChunks = Math.ceil(audioData.length / (samplesPerChunk - strideInSamples));
+
+                let allChunks = [];
+                let currentTime = 0;
+
+                transcriptionEl.innerHTML = '<div style="color: #666; font-style: italic;">Starting transcription...</div>';
+                updateStatus(`🔄 Transcribing ${totalChunks} part${totalChunks > 1 ? 's' : ''}...`, 'loading');
+
+                for (let i = 0; i < audioData.length; i += (samplesPerChunk - strideInSamples)) {
+                    const currentChunkNum = (i / (samplesPerChunk - strideInSamples)) + 1;
+                    const chunkEnd = Math.min(i + samplesPerChunk, audioData.length);
+                    const audioChunk = audioData.slice(i, chunkEnd);
+
+                    const chunkStartTime = (i / 16000).toFixed(1);
+                    const chunkEndTime = (chunkEnd / 16000).toFixed(1);
+                    const baseProgress = 20;
+                    const progressPerChunk = 75 / totalChunks;
+                    const progress = Math.min(95, baseProgress + (currentChunkNum - 1) * progressPerChunk);
+
+                    updateProgress(progress, `Part ${currentChunkNum}/${totalChunks} (${chunkStartTime}s - ${chunkEndTime}s)`);
+                    updateStatus(`🔄 Transcribing part ${currentChunkNum}/${totalChunks}...`, 'loading');
+
+                    notify({ status: 'transcribing', progress: progress, currentChunk: currentChunkNum, totalChunks: totalChunks });
+
+                    const result = await transcriber(audioChunk, {
+                        chunk_length_s: 30,
+                        stride_length_s: 5,
+                        return_timestamps: 'word',
+                    });
+
+                    if (result && result.chunks) {
+                        const adjustedChunks = result.chunks.map(chunk => ({
+                            text: chunk.text.trim(),
+                            timestamp: {
+                                start: chunk.timestamp[0] + (i / 16000),
+                                end: (chunk.timestamp[1] || chunk.timestamp[0]) + (i / 16000)
+                            }
+                        }));
+
+                        allChunks.push(...adjustedChunks);
+
+                        const completedProgress = Math.min(95, baseProgress + currentChunkNum * progressPerChunk);
+                        updateProgress(completedProgress, `✓ Part ${currentChunkNum}/${totalChunks} complete`);
+
+                        notify({ status: 'chunk_complete', progress: completedProgress, chunks: adjustedChunks });
+                        displayLiveTranscription(allChunks, false);
+                        await new Promise(resolve => setTimeout(resolve, 250));
+                    }
+
+                    // --- FIX: Yield to the main thread to prevent "Page Unresponsive" errors ---
+                    // This gives the browser a moment to process UI updates and other events.
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+
+                updateProgress(100, 'Complete!');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                hideProgress();
+
+                if (allChunks.length > 0) {
+                    displayLiveTranscription(allChunks, true);
+                    updateStatus('✅ Transcription complete!', 'ready');
+                    const fullText = allChunks.map(c => c.text).join(' ');
+                    notify({ status: 'complete', progress: 100, text: fullText, chunks: allChunks });
+                } else {
+                    transcriptionEl.textContent = 'No speech detected in the audio.';
+                    updateStatus('⚠️ No speech detected', 'error');
+                    notify({ status: 'no_speech', progress: 100 });
+                }
+
+                await audioContext.close();
+            } catch (error) {
+                console.error('Transcription error:', error);
+                hideProgress();
+                updateStatus('❌ Transcription error: ' + error.message, 'error');
+                transcriptionEl.textContent = 'Error during transcription. Please try again.';
+                if (progressCallback) {
+                    progressCallback({ status: 'error', error: error.message });
+                }
+            }
+        }
+
+        function displayLiveTranscription(chunks, isComplete) {
+            let formattedText = chunks.map(chunk => {
+                const start = chunk.timestamp.start.toFixed(2);
+                const end = chunk.timestamp.end.toFixed(2);
+                return `[${start}s - ${end}s] ${chunk.text}`;
+            }).join('\n');
+
+            if (!isComplete) {
+                formattedText += '\n\n⏳ Transcribing more...';
+            }
+
+            transcriptionEl.textContent = formattedText;
+
+            if (isComplete) {
+                const fullText = chunks.map(c => c.text).join(' ');
+                const jsonOutput = { text: fullText, chunks: chunks };
+
+                document.getElementById('download-json-btn')?.remove();
+                document.getElementById('copy-json-btn')?.remove();
+
+                const downloadBtn = document.createElement('button');
+                downloadBtn.id = 'download-json-btn';
+                downloadBtn.textContent = '📥 Download JSON';
+                downloadBtn.className = 'btn-primary';
+                downloadBtn.style.cssText = 'margin-top: 15px; margin-right: 10px;';
+                downloadBtn.onclick = () => {
+                    const blob = new Blob([JSON.stringify(jsonOutput, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'transcription-timestamps.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                };
+
+                const copyBtn = document.createElement('button');
+                copyBtn.id = 'copy-json-btn';
+                copyBtn.textContent = '📋 Copy JSON';
+                copyBtn.className = 'btn-secondary';
+                copyBtn.style.marginTop = '15px';
+                copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(JSON.stringify(jsonOutput, null, 2));
+                    copyBtn.textContent = '✅ Copied!';
+                    setTimeout(() => { copyBtn.textContent = '📋 Copy JSON'; }, 2000);
+                };
+
+                transcriptionEl.after(copyBtn);
+                transcriptionEl.after(downloadBtn);
+            }
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('audio-file').addEventListener('change', async function (event) {
+            const file = event.target.files[0];
+            if (file) {
+                audioPlayer.src = URL.createObjectURL(file);
+                audioContainer.style.display = 'block';
+                const arrayBuffer = await file.arrayBuffer();
+                await transcribeAudio(arrayBuffer, (data) => console.log('📢 File callback:', data));
+            }
+        });
+
+        startRecordingBtn.addEventListener('click', async function () {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (event) => audioChunks.push(event.data);
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    audioPlayer.src = URL.createObjectURL(audioBlob);
+                    audioContainer.style.display = 'block';
+                    const arrayBuffer = await audioBlob.arrayBuffer();
+                    await transcribeAudio(arrayBuffer, (data) => console.log('🎙️ Recording callback:', data));
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                mediaRecorder.start();
+                startRecordingBtn.disabled = true;
+                stopRecordingBtn.disabled = false;
+                recordingIndicator.classList.add('active');
+                updateStatus('🎤 Recording...', 'loading');
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                updateStatus('❌ Could not access microphone: ' + error.message, 'error');
+            }
+        });
+
+        stopRecordingBtn.addEventListener('click', function () {
+            if (mediaRecorder?.state === 'recording') {
+                mediaRecorder.stop();
+                startRecordingBtn.disabled = false;
+                stopRecordingBtn.disabled = true;
+                recordingIndicator.classList.remove('active');
+                updateStatus('Processing recording...', 'loading');
+            }
+        });
+
+        window.onload = loadModel;
+    </script>
+</body>
+
+</html>
