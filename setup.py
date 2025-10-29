@@ -23,7 +23,8 @@ extras_require = {
 	],
 	'fasterwhisper': [
 		'faster-whisper',
-		'python-dotenv'
+		'python-dotenv',
+		'requests'
 	],
 	'parakeet': [
 		'nemo_toolkit[asr]',

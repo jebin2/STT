@@ -136,7 +136,14 @@ def is_gpu_available(verbose=True):
         raise  # re-raise if it's some other unexpected error
 
 def get_device(is_vision=False):
+    import torch
+    device = None
     if not is_vision and os.getenv("USE_CPU_IF_POSSIBLE", None):
-        return "cpu"
+        device = "cpu"
     else:
-        return "cuda" if is_gpu_available() else "cpu"
+        device = "cuda" if is_gpu_available() else "cpu"
+
+    if device == "cpu":
+        torch.cuda.is_available = lambda: False
+
+    return device
