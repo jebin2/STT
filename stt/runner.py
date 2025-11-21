@@ -108,7 +108,7 @@ def main():
 	)
 	parser.add_argument(
 		"--model",
-		help="Input audio/video file path"
+		help="model name"
 	)
 	
 	args = parser.parse_args()
