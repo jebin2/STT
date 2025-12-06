@@ -627,6 +627,7 @@
                         <tr>
                             <th>Filename</th>
                             <th>Status</th>
+                            <th>Est. Wait</th>
                             <th>Caption</th>
                             <th>Created</th>
                             <th>Processed</th>
@@ -634,7 +635,7 @@
                     </thead>
                     <tbody id="filesTable">
                         <tr>
-                            <td colspan="5" class="empty-state">No files uploaded yet. Start by uploading an audio file!
+                            <td colspan="6" class="empty-state">No files uploaded yet. Start by uploading an audio file!
                             </td>
                         </tr>
                     </tbody>
@@ -754,7 +755,7 @@
                 const tbody = document.getElementById('filesTable');
 
                 if (files.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No files uploaded yet. Start by uploading an audio file!</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No files uploaded yet. Start by uploading an audio file!</td></tr>';
                     return;
                 }
 
@@ -762,11 +763,35 @@
                     const captionPreview = file.caption ?
                         (file.caption.length > 50 ? file.caption.substring(0, 50) + '...' : file.caption) :
                         '—';
+                    
+                    // Format estimated wait time
+                    let estWait = '—';
+                    if (file.status === 'not_started' && file.estimated_start_seconds !== null) {
+                        const seconds = file.estimated_start_seconds;
+                        if (seconds < 60) {
+                            estWait = `${seconds}s`;
+                        } else if (seconds < 3600) {
+                            const mins = Math.floor(seconds / 60);
+                            const secs = seconds % 60;
+                            estWait = secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+                        } else {
+                            const hours = Math.floor(seconds / 3600);
+                            const mins = Math.floor((seconds % 3600) / 60);
+                            estWait = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+                        }
+                        // Add queue position
+                        if (file.queue_position) {
+                            estWait = `#${file.queue_position} (${estWait})`;
+                        }
+                    } else if (file.status === 'processing') {
+                        estWait = '⏳ Processing...';
+                    }
 
                     return `
                     <tr>
                         <td><strong>${file.filename}</strong></td>
                         <td><span class="status status-${file.status}">${file.status.replace('_', ' ')}</span></td>
+                        <td>${estWait}</td>
                         <td class="caption-cell">
                             ${file.caption ?
                             `<button class="btn btn-small btn-secondary" onclick='showCaption(${JSON.stringify(file.caption)})' style="margin-left: 0.5rem;">Show</button>`

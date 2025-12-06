@@ -203,24 +203,75 @@ def upload_audio():
         'message': 'File uploaded successfully'
     }), 201
 
+def get_average_processing_time(cursor):
+    """Calculate average processing time from completed files in seconds"""
+    cursor.execute('''SELECT created_at, processed_at FROM audio_files 
+                      WHERE status = 'completed' AND processed_at IS NOT NULL
+                      ORDER BY processed_at DESC LIMIT 20''')
+    completed_rows = cursor.fetchall()
+    
+    if not completed_rows:
+        return 30.0  # Default estimate: 30 seconds per file
+    
+    total_seconds = 0
+    count = 0
+    for r in completed_rows:
+        try:
+            created = datetime.fromisoformat(r['created_at'])
+            processed = datetime.fromisoformat(r['processed_at'])
+            duration = (processed - created).total_seconds()
+            if duration > 0:
+                total_seconds += duration
+                count += 1
+        except:
+            continue
+    
+    return total_seconds / count if count > 0 else 30.0
+
 @app.route('/api/files', methods=['GET'])
 def get_files():
     conn = sqlite3.connect('audio_captions.db')
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
+    
+    # Get average processing time
+    avg_time = get_average_processing_time(c)
+    
+    # Get queue (files waiting to be processed, ordered by creation time)
+    c.execute('''SELECT id FROM audio_files 
+                 WHERE status = 'not_started' 
+                 ORDER BY created_at ASC''')
+    queue_ids = [row['id'] for row in c.fetchall()]
+    
+    # Check if there's a file currently processing
+    c.execute('''SELECT COUNT(*) as count FROM audio_files WHERE status = 'processing' ''')
+    processing_count = c.fetchone()['count']
+    
     c.execute('SELECT * FROM audio_files ORDER BY created_at DESC')
     rows = c.fetchall()
     conn.close()
     
     files = []
     for row in rows:
+        # Calculate queue position (1-based) for files in queue
+        queue_position = None
+        estimated_start_seconds = None
+        
+        if row['status'] == 'not_started' and row['id'] in queue_ids:
+            queue_position = queue_ids.index(row['id']) + 1
+            # Estimate = (files ahead + currently processing) * avg time
+            files_ahead = queue_position - 1 + processing_count
+            estimated_start_seconds = round(files_ahead * avg_time)
+        
         files.append({
             'id': row['id'],
             'filename': row['filename'],
             'status': row['status'],
             'caption': row['caption'],
             'created_at': row['created_at'],
-            'processed_at': row['processed_at']
+            'processed_at': row['processed_at'],
+            'queue_position': queue_position,
+            'estimated_start_seconds': estimated_start_seconds
         })
     
     return jsonify(files)
@@ -232,10 +283,35 @@ def get_file(file_id):
     c = conn.cursor()
     c.execute('SELECT * FROM audio_files WHERE id = ?', (file_id,))
     row = c.fetchone()
-    conn.close()
     
     if row is None:
+        conn.close()
         return jsonify({'error': 'File not found'}), 404
+    
+    # Calculate queue position and estimated time if file is waiting
+    queue_position = None
+    estimated_start_seconds = None
+    
+    if row['status'] == 'not_started':
+        # Get average processing time
+        avg_time = get_average_processing_time(c)
+        
+        # Count files ahead in queue
+        c.execute('''SELECT COUNT(*) as position FROM audio_files 
+                     WHERE status = 'not_started' AND created_at < ?''',
+                  (row['created_at'],))
+        position_row = c.fetchone()
+        queue_position = position_row['position'] + 1  # 1-based position
+        
+        # Check if there's a file currently processing
+        c.execute('''SELECT COUNT(*) as count FROM audio_files WHERE status = 'processing' ''')
+        processing_count = c.fetchone()['count']
+        
+        # Estimate = (files ahead + currently processing) * avg time
+        files_ahead = queue_position - 1 + processing_count
+        estimated_start_seconds = round(files_ahead * avg_time)
+    
+    conn.close()
     
     return jsonify({
         'id': row['id'],
@@ -243,7 +319,9 @@ def get_file(file_id):
         'status': row['status'],
         'caption': row['caption'],
         'created_at': row['created_at'],
-        'processed_at': row['processed_at']
+        'processed_at': row['processed_at'],
+        'queue_position': queue_position,
+        'estimated_start_seconds': estimated_start_seconds
     })
 
 @app.route('/health', methods=['GET'])
