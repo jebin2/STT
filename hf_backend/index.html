@@ -704,13 +704,20 @@
             selectedFile = e.target.files[0];
             if (selectedFile) {
                 showNotification(`Selected: ${selectedFile.name}`);
+                // Auto-upload if triggered by upload button click
+                if (pendingUpload) {
+                    pendingUpload = false;
+                    uploadFile();
+                }
             }
         });
 
-        // Upload button
-        uploadBtn.addEventListener('click', async () => {
+        // Flag to track if upload was triggered without file selection
+        let pendingUpload = false;
+
+        // Upload file function
+        async function uploadFile() {
             if (!selectedFile) {
-                showNotification('Please select a file first!', 'error');
                 return;
             }
 
@@ -744,6 +751,19 @@
                 loader.style.display = 'none';
                 uploadBtn.disabled = false;
             }
+        }
+
+        // Upload button - one-click flow
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) {
+                // No file selected - trigger file picker and auto-upload after selection
+                pendingUpload = true;
+                fileInput.click();
+                return;
+            }
+
+            // File already selected - upload directly
+            uploadFile();
         });
 
         // Load files
@@ -763,7 +783,7 @@
                     const captionPreview = file.caption ?
                         (file.caption.length > 50 ? file.caption.substring(0, 50) + '...' : file.caption) :
                         '—';
-                    
+
                     // Format estimated wait time
                     let estWait = '—';
                     if (file.status === 'not_started' && file.estimated_start_seconds !== null) {
