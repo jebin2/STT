@@ -672,6 +672,9 @@
         const API_URL = '/api';
         let selectedFile = null;
 
+        // Store captions by file ID to avoid inline JSON issues with large texts
+        const captionStore = new Map();
+
         // Upload zone interactions
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('audioFile');
@@ -774,12 +777,20 @@
 
                 const tbody = document.getElementById('filesTable');
 
+                // Clear old captions and store new ones
+                captionStore.clear();
+
                 if (files.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No files uploaded yet. Start by uploading an audio file!</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = files.map(file => {
+                    // Store caption in Map to avoid inline JSON issues with large texts
+                    if (file.caption) {
+                        captionStore.set(file.id, file.caption);
+                    }
+
                     const captionPreview = file.caption ?
                         (file.caption.length > 50 ? file.caption.substring(0, 50) + '...' : file.caption) :
                         '—';
@@ -814,7 +825,7 @@
                         <td>${estWait}</td>
                         <td class="caption-cell">
                             ${file.caption ?
-                            `<button class="btn btn-small btn-secondary" onclick='showCaption(${JSON.stringify(file.caption)})' style="margin-left: 0.5rem;">Show</button>`
+                            `<button class="btn btn-small btn-secondary" onclick="showCaption('${file.id}')" style="margin-left: 0.5rem;">Show</button>`
                             : '—'}
                         </td>
                         <td>${new Date(file.created_at).toLocaleString()}</td>
@@ -828,7 +839,13 @@
         }
 
         // Modal functions
-        function showCaption(caption) {
+        function showCaption(fileId) {
+            const caption = captionStore.get(fileId);
+            if (!caption) {
+                console.error('Caption not found for file:', fileId);
+                return;
+            }
+
             const modal = document.getElementById('captionModal');
             const codeBlock = document.getElementById('captionCode');
 
