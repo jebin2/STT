@@ -1,0 +1,34 @@
+name: Daily STT Test
+
+on:
+  schedule:
+    # Runs at 2 PM IST (8:30 AM UTC) every day
+    - cron: '30 8 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  trigger-stt:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Trigger STT with test.wav
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://jebin2-stt.hf.space/api/upload" \
+            -F "audio=@test.wav")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n -1)
+          
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+          
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "✅ STT request submitted successfully!"
+          else
+            echo "❌ STT request failed with status $http_code"
+            exit 1
+          fi
