@@ -49,6 +49,49 @@ def start_worker():
         worker_thread.start()
         print("✅ Worker thread started")
 
+def cleanup_old_entries():
+    """Delete database entries and audio files older than 10 days"""
+    from datetime import timedelta
+    
+    try:
+        conn = sqlite3.connect('audio_captions.db')
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        
+        # Calculate cutoff date (10 days ago)
+        cutoff_date = (datetime.now() - timedelta(days=10)).isoformat()
+        
+        # First, get all old entries to delete their audio files
+        c.execute('''SELECT id, filepath FROM audio_files 
+                     WHERE created_at < ?''', (cutoff_date,))
+        old_entries = c.fetchall()
+        
+        if old_entries:
+            deleted_files = 0
+            deleted_rows = 0
+            
+            for entry in old_entries:
+                # Delete the audio file if it exists
+                filepath = entry['filepath']
+                if filepath and os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                        deleted_files += 1
+                    except Exception as e:
+                        print(f"⚠️  Failed to delete old audio file {filepath}: {e}")
+            
+            # Delete old database entries
+            c.execute('''DELETE FROM audio_files WHERE created_at < ?''', (cutoff_date,))
+            deleted_rows = c.rowcount
+            conn.commit()
+            
+            if deleted_rows > 0 or deleted_files > 0:
+                print(f"🧹 Cleanup: Deleted {deleted_rows} old entries and {deleted_files} audio files (older than 10 days)")
+        
+        conn.close()
+    except Exception as e:
+        print(f"⚠️  Cleanup error: {e}")
+
 def worker_loop():
     """Main worker loop that processes audio files"""
     print("🤖 STT Worker started. Monitoring for new audio files...")
@@ -62,6 +105,8 @@ def worker_loop():
     import json
     
     while worker_running:
+        # Run cleanup before processing each task
+        cleanup_old_entries()
         try:
             # Get next unprocessed file
             conn = sqlite3.connect('audio_captions.db')
