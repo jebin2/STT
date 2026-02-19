@@ -147,3 +147,17 @@ def get_device(is_vision=False):
         torch.cuda.is_available = lambda: False
 
     return device
+
+def run_ffmpeg(cmd):
+    available_threads = max(1, os.cpu_count() - 2)  # leave 2 cores free
+
+    cmd = [
+        "taskset", "-c", "2,3",
+        "nice", "-n", "15",
+        "ffmpeg",
+        "-threads", str(available_threads)
+    ] + cmd[1:]
+
+    logger_config.debug(f"Running command: {' '.join(cmd)}")
+
+    return subprocess.run(cmd, capture_output=True, text=True, check=True)

@@ -59,14 +59,18 @@ class BaseSTT:
 			print(f"Trying to extract English audio from: {video_path}")
 
 			# Attempt to extract only English audio stream
-			ffmpeg.input(video_path).output(
-				temp_audio_path,
-				format='wav',
-				acodec='pcm_s16le',
-				ac=1,
-				ar=16000,
-				**{'map': '0:m:language:eng'}
-			).overwrite_output().run(quiet=True, capture_stdout=True, capture_stderr=True)
+			cmd = [
+				'ffmpeg',
+				'-i', video_path,
+				'-map', '0:a:0',
+				'-vn',
+				'-acodec', 'pcm_s16le',
+				'-ac', '1',
+				'-ar', '16000',
+				'-y',
+				temp_audio_path
+			]
+			common.run_ffmpeg(cmd)
 			
 			if Path(temp_audio_path).exists() and Path(temp_audio_path).stat().st_size > 0:
 				print(f"✅ English audio extracted to: {temp_audio_path}")
@@ -78,14 +82,18 @@ class BaseSTT:
 			print(f"⚠️ English audio not found, falling back to default audio stream. Reason: {e}")
 
 			# Fallback: extract default audio stream (usually stream index 0:1)
-			ffmpeg.input(video_path).output(
-				temp_audio_path,
-				format='wav',
-				acodec='pcm_s16le',
-				ac=1,
-				ar=16000,
-				**{'map': '0:a:0'}  # fallback to first audio stream
-			).overwrite_output().run()
+			cmd = [
+				'ffmpeg',
+				'-i', video_path,
+				'-map', '0:a:0',
+				'-vn',
+				'-acodec', 'pcm_s16le',
+				'-ac', '1',
+				'-ar', '16000',
+				'-y',
+				temp_audio_path
+			]
+			common.run_ffmpeg(cmd)
 
 			print(f"✅ Fallback audio extracted to: {temp_audio_path}")
 			return temp_audio_path
