@@ -159,5 +159,5 @@ def run_ffmpeg(cmd):
         "ffmpeg",
         "-threads", str(threads)
     ] + cmd[1:]
-    logger_config.debug(f"Running command: {' '.join(cmd)}")
+    print(f"Running command: {' '.join(cmd)}")
     return subprocess.run(cmd, capture_output=True, text=True, check=True)
