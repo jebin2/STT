@@ -157,6 +157,7 @@ def run_ffmpeg(cmd):
         "taskset", "-c", "2,3",
         "nice", "-n", "15",
         "ffmpeg",
+        "-nostdin",
         "-threads", str(threads)
     ] + cmd[1:]
     print(f"Running command: {' '.join(cmd)}")
