@@ -29,7 +29,7 @@ extras_require = {
 		'psutil'
 	],
 	'parakeet': [
-		'nemo_toolkit[asr]==1.23.0',
+		'nemo_toolkit[asr]',
 		'cuda-python>=12.3',
 		'librosa',
 		'soundfile',
