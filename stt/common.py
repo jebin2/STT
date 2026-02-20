@@ -7,6 +7,7 @@ import hashlib
 import random
 import time
 import re
+import psutil
 
 def get_files_count(directory_path):
     return len(os.listdir(directory_path))

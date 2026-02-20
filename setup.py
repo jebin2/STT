@@ -19,12 +19,14 @@ BASE_DEPS = [
 extras_require = {
 	'openai': [
 		'openai-whisper>=20231117',
-		'python-dotenv'
+		'python-dotenv',
+		'psutil'
 	],
 	'fasterwhisper': [
 		'faster-whisper',
 		'python-dotenv',
-		'requests'
+		'requests',
+		'psutil'
 	],
 	'parakeet': [
 		'nemo_toolkit[asr]',
@@ -32,7 +34,8 @@ extras_require = {
 		'librosa',
 		'soundfile',
 		'typing_extensions',
-		'python-dotenv'
+		'python-dotenv',
+		'psutil'
 	],
 }
 
