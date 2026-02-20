@@ -30,6 +30,7 @@ extras_require = {
 	],
 	'parakeet': [
 		'nemo_toolkit[asr]',
+		'lhotse==1.27.0',
 		'cuda-python>=12.3',
 		'librosa',
 		'soundfile',
