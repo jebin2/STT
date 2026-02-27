@@ -98,7 +98,7 @@ def worker_loop():
     
     CWD = "./"
     PYTHON_PATH = "stt-transcribe"
-    STT_MODEL_NAME = "fasterwhispher"
+    STT_MODEL_NAME = "parakeet"
     POLL_INTERVAL = 3  # seconds
     
     import shlex

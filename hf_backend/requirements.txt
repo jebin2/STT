@@ -3,4 +3,4 @@ flask-cors==4.0.0
 werkzeug==3.0.1
 
 #STT
-git+https://github.com/jebin2/STT.git#egg=stt-runner[fasterwhisper]
+git+https://github.com/jebin2/STT.git#egg=stt-runner[parakeet]
