@@ -33,9 +33,10 @@ def init_db():
                   caption TEXT,
                   created_at TEXT NOT NULL,
                   processed_at TEXT,
+                  progress INTEGER DEFAULT 0,
+                  progress_text TEXT,
                   hide_from_ui INTEGER DEFAULT 0)'''
     )
-
     conn.commit()
     conn.close()
 
@@ -140,12 +141,17 @@ def worker_loop():
                     print(f"🔄 Running STT on: {os.path.abspath(filepath)}")
                     command = f"""cd {CWD} && {PYTHON_PATH} --input {shlex.quote(os.path.abspath(filepath))} --model {STT_MODEL_NAME}"""
                     
-                    subprocess.run(
+                    import re
+                    
+                    process = subprocess.Popen(
                         command,
                         shell=True,
                         executable="/bin/bash",
-                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
                         cwd=CWD,
+                        text=True,
+                        bufsize=1,
                         env={
                             **os.environ,
                             'PYTHONUNBUFFERED': '1',
@@ -153,6 +159,53 @@ def worker_loop():
                             'USE_CPU_IF_POSSIBLE': 'true'
                         }
                     )
+                    
+                    
+                    current_chunk = 1
+                    total_chunks = 1
+                    
+                    for line in process.stdout:
+                        print(line, end='')
+                        
+                        # Track chunk progress
+                        chunk_match = re.search(r'Processing chunk (\d+)/(\d+)', line)
+                        if chunk_match:
+                            try:
+                                current_chunk = int(chunk_match.group(1))
+                                total_chunks = int(chunk_match.group(2))
+                            except: pass
+                        
+                        # Generic percentage matcher
+                        percent_match = re.search(r'(\d+)%', line)
+                        if percent_match:
+                            try:
+                                percent = int(percent_match.group(1))
+                                if 'audio' in line.lower() or 'extract' in line.lower():
+                                    update_progress(file_id, percent // 2, "Extracting audio...")
+                                elif 'transcrib' in line.lower() or 'model' in line.lower():
+                                    # Calculate overall transcription progress based on chunks
+                                    chunk_base = ((current_chunk - 1) / total_chunks) * 100
+                                    chunk_progress = (percent / total_chunks)
+                                    overall_transcription_progress = chunk_base + chunk_progress
+                                    
+                                    # Remap so 50-100% of the overall bar is transcription
+                                    overall_progress = int(50 + (overall_transcription_progress / 2))
+                                    update_progress(file_id, overall_progress, f"Transcribing... (Chunk {current_chunk}/{total_chunks})")
+                                else:
+                                    update_progress(file_id, percent, "Processing...")
+                            except: pass
+                            
+                        # Stage matchers
+                        if 'extracting audio' in line.lower():
+                            update_progress(file_id, 10, "Extracting audio...")
+                        elif 'transcription started' in line.lower() and total_chunks == 1:
+                            update_progress(file_id, 50, "Transcribing started...")
+                        elif 'model loaded' in line.lower():
+                            update_progress(file_id, 20, "Model loaded...")
+                    
+                    process.wait()
+                    if process.returncode != 0:
+                        raise Exception(f"STT process failed with return code {process.returncode}")
                     
                     # Read transcription result
                     output_path = f'{CWD}/temp_dir/output_transcription.json'
@@ -189,6 +242,15 @@ def worker_loop():
             print(f"⚠️  Worker error: {str(e)}")
             time.sleep(POLL_INTERVAL)
 
+def update_progress(file_id, progress, progress_text=None):
+    """Update the progress of a file in the database"""
+    conn = sqlite3.connect('audio_captions.db')
+    c = conn.cursor()
+    c.execute('UPDATE audio_files SET progress = ?, progress_text = ? WHERE id = ?',
+              (progress, progress_text, file_id))
+    conn.commit()
+    conn.close()
+
 def update_status(file_id, status, caption=None, error=None):
     """Update the status of a file in the database"""
     conn = sqlite3.connect('audio_captions.db')
@@ -196,12 +258,12 @@ def update_status(file_id, status, caption=None, error=None):
     
     if status == 'completed':
         c.execute('''UPDATE audio_files 
-                     SET status = ?, caption = ?, processed_at = ?
+                     SET status = ?, caption = ?, processed_at = ?, progress = 100, progress_text = 'Completed'
                      WHERE id = ?''',
                   (status, caption, datetime.now().isoformat(), file_id))
     elif status == 'failed':
         c.execute('''UPDATE audio_files 
-                     SET status = ?, caption = ?, processed_at = ?
+                     SET status = ?, caption = ?, processed_at = ?, progress_text = 'Failed'
                      WHERE id = ?''',
                   (status, f"Error: {error}", datetime.now().isoformat(), file_id))
     else:
@@ -318,9 +380,11 @@ def get_files():
             'id': row['id'],
             'filename': row['filename'],
             'status': row['status'],
-            'caption': row['caption'],
+            'caption': "HIDDEN_IN_LIST_VIEW",  # Don't send full captions in list view
             'created_at': row['created_at'],
             'processed_at': row['processed_at'],
+            'progress': row['progress'] or 0,
+            'progress_text': row['progress_text'],
             'queue_position': queue_position,
             'estimated_start_seconds': estimated_start_seconds
         })
@@ -371,6 +435,8 @@ def get_file(file_id):
         'caption': row['caption'],
         'created_at': row['created_at'],
         'processed_at': row['processed_at'],
+        'progress': row['progress'] or 0,
+        'progress_text': row['progress_text'],
         'queue_position': queue_position,
         'estimated_start_seconds': estimated_start_seconds
     })
