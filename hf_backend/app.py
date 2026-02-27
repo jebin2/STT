@@ -32,7 +32,10 @@ def init_db():
                   status TEXT NOT NULL,
                   caption TEXT,
                   created_at TEXT NOT NULL,
-                  processed_at TEXT)''')
+                  processed_at TEXT,
+                  hide_from_ui INTEGER DEFAULT 0)'''
+    )
+
     conn.commit()
     conn.close()
 
@@ -229,12 +232,15 @@ def upload_audio():
     filepath = os.path.join(UPLOAD_FOLDER, f"{file_id}_{filename}")
     file.save(filepath)
     
+    hide_from_ui_str = request.form.get('hide_from_ui', '')
+    hide_from_ui_val = 1 if str(hide_from_ui_str).lower() in ['true', '1'] else 0
+    
     conn = sqlite3.connect('audio_captions.db')
     c = conn.cursor()
     c.execute('''INSERT INTO audio_files 
-                 (id, filename, filepath, status, created_at)
-                 VALUES (?, ?, ?, ?, ?)''',
-              (file_id, filename, filepath, 'not_started', datetime.now().isoformat()))
+                 (id, filename, filepath, status, created_at, hide_from_ui)
+                 VALUES (?, ?, ?, ?, ?, ?)''',
+              (file_id, filename, filepath, 'not_started', datetime.now().isoformat(), hide_from_ui_val))
     conn.commit()
     conn.close()
     
@@ -292,7 +298,7 @@ def get_files():
     c.execute('''SELECT COUNT(*) as count FROM audio_files WHERE status = 'processing' ''')
     processing_count = c.fetchone()['count']
     
-    c.execute('SELECT * FROM audio_files ORDER BY created_at DESC')
+    c.execute('SELECT * FROM audio_files WHERE hide_from_ui = 0 OR hide_from_ui IS NULL ORDER BY created_at DESC')
     rows = c.fetchall()
     conn.close()
     
