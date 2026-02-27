@@ -13,7 +13,7 @@ app = Flask(__name__)
 CORS(app)
 
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac'}
+ALLOWED_EXTENSIONS = {'wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'mp4', 'mkv', 'avi', 'mov'}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs('temp_dir', exist_ok=True)
