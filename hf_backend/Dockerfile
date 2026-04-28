@@ -11,14 +11,12 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application files
+# Copy project files
+COPY pyproject.toml .
 COPY . .
+
+# Install dependencies and project
+RUN pip install --no-cache-dir .
 
 # Create necessary directories
 RUN mkdir -p uploads temp_dir
@@ -26,5 +24,5 @@ RUN mkdir -p uploads temp_dir
 # Expose port
 EXPOSE 7860
 
-# Run only the Flask app (worker starts automatically on first upload)
-CMD ["python", "app.py"]
+# Run the FastAPI app
+CMD ["python", "run.py"]
