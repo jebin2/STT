@@ -1,6 +1,6 @@
 # Audio Caption Generator
 
-A Python-based audio transcription service with a neobrutalist web interface. Upload audio files via API, process them with STT (Speech-to-Text), and view results in a stunning UI.
+A Python-based audio transcription service with a neobrutalist web interface. Upload audio file via API, process them with STT (Speech-to-Text), and view results in a stunning UI.
 
 ## Features
 
