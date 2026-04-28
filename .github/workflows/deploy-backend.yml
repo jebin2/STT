@@ -81,7 +81,7 @@ jobs:
           Access the web interface at the Space URL above.
 
           ## API Endpoints
-          - POST `/api/upload` - Upload audio file
+          - POST `/api/upload` - Upload your file
           - GET `/api/files` - Get all files
           - GET `/api/files/<id>` - Get specific file
 
