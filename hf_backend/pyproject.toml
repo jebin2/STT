@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stt-backend"
+version = "2.0.0"
+description = "FastAPI backend for STT"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "aiosqlite",
+    "aiofiles",
+    "python-multipart",
+    "custom_logger @ git+https://github.com/jebin2/custom_logger.git",
+    "stt-runner[parakeet] @ git+https://github.com/jebin2/STT.git"
+]
+
+[project.scripts]
+stt-backend = "app.main:app"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

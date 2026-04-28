@@ -2,927 +2,816 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Caption Generator</title>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>STT - Speech to Text</title>
+
+    <!-- External Assets -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=Caveat:wght@400..700&display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+
+    <!-- Tailwind Configuration -->
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        surface: "#e6f0fd",
+                        "crayon-blue": "#2563eb",
+                        "crayon-red": "#dc2626",
+                        "crayon-green": "#16a34a",
+                        "crayon-yellow": "#ca8a04",
+                        "crayon-orange": "#ea580c",
+                        "crayon-purple": "#7c3aed",
+                        "crayon-dark": "#1A1A1A"
+                    },
+                    fontFamily: {
+                        "fredoka": ["Fredoka", "sans-serif"],
+                        "caveat": ["Caveat", "cursive"]
+                    },
+                    fontSize: {
+                        "headline-lg": ["42px", { lineHeight: "1.1", fontWeight: "700" }],
+                        "headline-md": ["28px", { lineHeight: "1.2", fontWeight: "600" }],
+                        "body-lg": ["24px", { lineHeight: "1.5", fontWeight: "500" }],
+                        "label-sm": ["18px", { lineHeight: "1.2", letterSpacing: "0.01em", fontWeight: "500" }],
+                        "body-md": ["20px", { lineHeight: "1.5", fontWeight: "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+
+    <svg height="0" style="position: absolute;" width="0">
+        <filter height="120%" id="crayon-texture" width="120%" x="-10%" y="-10%">
+            <feTurbulence baseFrequency="0.4" numOctaves="3" result="noise" type="fractalNoise"></feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G">
+            </feDisplacementMap>
+        </filter>
+        <filter height="120%" id="crayon-heavy" width="120%" x="-10%" y="-10%">
+            <feTurbulence baseFrequency="0.5" numOctaves="4" result="noise" type="fractalNoise"></feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" yChannelSelector="G">
+            </feDisplacementMap>
+        </filter>
+    </svg>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --bg: #0a0e27;
-            --surface: #141b3d;
-            --primary: #00ff88;
-            --secondary: #ff00ff;
-            --accent: #00d4ff;
-            --error: #ff1744;
-            --text: #ffffff;
-            --border: 4px;
-        }
-
+        /* Sketchbook Styles */
         body {
-            font-family: 'Space Grotesk', 'Courier New', monospace;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
-            position: relative;
+            background-color: #e6f0fd;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+            color: #1A1A1A;
+            font-family: 'Fredoka', sans-serif;
         }
 
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background:
-                radial-gradient(circle at 20% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 40% 20%, rgba(0, 212, 255, 0.1) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: 0;
+        .bg-surface {
+            background-color: rgb(255 255 255 / 0%) !important;
+            backdrop-filter: blur(2px);
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem;
-            position: relative;
-            z-index: 1;
+        .crayon-filter {
+            filter: url('#crayon-texture');
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 3rem;
-            animation: slideDown 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        .crayon-heavy {
+            filter: url('#crayon-heavy');
         }
 
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-50px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .crayon-border-green {
+            border: 4px solid #16a34a;
+            border-radius: 12px 8px 15px 10px / 8px 14px 10px 12px;
+            filter: url('#crayon-texture');
         }
 
-        h1 {
-            font-size: clamp(2rem, 5vw, 4rem);
-            font-weight: 900;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 50%, var(--secondary) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-transform: uppercase;
-            letter-spacing: -2px;
-            margin-bottom: 1rem;
-            position: relative;
-            display: inline-block;
+        .task-card {
+            border: 3px solid rgba(124, 58, 237, 0.4);
+            border-radius: 20px 15px 25px 18px / 18px 25px 15px 20px;
+            filter: url('#crayon-texture');
         }
 
-        h1::after {
-            content: '';
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 60%;
-            height: 6px;
-            background: linear-gradient(90deg, transparent, var(--primary), transparent);
-            animation: glow 2s ease-in-out infinite;
+        .crayon-border-blue {
+            border: 4px dashed #2563eb;
+            border-radius: 15px 10px 12px 18px / 12px 18px 15px 10px;
+            filter: url('#crayon-texture');
         }
 
-        @keyframes glow {
-
-            0%,
-            100% {
-                opacity: 0.5;
-            }
-
-            50% {
-                opacity: 1;
-            }
+        .crayon-border-purple {
+            border: 4px solid #7c3aed;
+            border-radius: 10px 16px 12px 14px / 16px 12px 14px 10px;
+            filter: url('#crayon-texture');
         }
 
-        .subtitle {
-            font-size: 1.2rem;
-            color: var(--accent);
-            letter-spacing: 2px;
-        }
-
-        .upload-section {
-            background: var(--surface);
-            border: var(--border) solid var(--primary);
-            box-shadow: 8px 8px 0 var(--primary);
-            padding: 2rem;
-            margin-bottom: 3rem;
-            position: relative;
-            transition: all 0.3s ease;
-            animation: slideUp 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(50px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .upload-section:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 12px 12px 0 var(--primary);
-        }
-
-        .upload-zone {
-            border: 3px dashed var(--accent);
-            padding: 3rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background: rgba(0, 212, 255, 0.05);
-        }
-
-        .upload-zone:hover {
-            background: rgba(0, 212, 255, 0.1);
-            border-color: var(--primary);
-        }
-
-        .upload-zone.dragging {
-            background: rgba(0, 255, 136, 0.2);
-            border-color: var(--primary);
-            transform: scale(1.02);
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        .btn {
-            background: var(--primary);
-            color: var(--bg);
-            border: var(--border) solid var(--bg);
-            padding: 1rem 2rem;
-            font-size: 1.1rem;
-            font-weight: 900;
-            text-transform: uppercase;
-            cursor: pointer;
+        .crayon-button {
+            border: 4px solid #2563eb;
+            border-radius: 12px 8px 14px 10px / 8px 14px 10px 12px;
             transition: all 0.2s ease;
-            box-shadow: 4px 4px 0 var(--bg);
-            letter-spacing: 1px;
-            position: relative;
-        }
-
-        .btn:hover:not(:disabled) {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 var(--bg);
-        }
-
-        .btn:active:not(:disabled) {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 var(--bg);
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background: var(--accent);
-        }
-
-        .btn-small {
-            padding: 0.5rem 1rem;
-            font-size: 0.85rem;
-            box-shadow: 3px 3px 0 var(--bg);
-        }
-
-        .btn-small:hover:not(:disabled) {
-            box-shadow: 4px 4px 0 var(--bg);
-        }
-
-        .table-section {
-            animation: slideUp 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.4s both;
-        }
-
-        .table-wrapper {
-            overflow-x: auto;
-            background: var(--surface);
-            border: var(--border) solid var(--secondary);
-            box-shadow: 8px 8px 0 var(--secondary);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        thead {
-            background: linear-gradient(135deg, var(--primary), var(--accent));
-        }
-
-        th {
-            padding: 1.5rem 1rem;
-            text-align: left;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--bg);
-            border-right: 3px solid var(--bg);
-        }
-
-        th:last-child {
-            border-right: none;
-        }
-
-        tbody tr {
-            border-bottom: 2px solid rgba(0, 212, 255, 0.2);
-            transition: all 0.3s ease;
-            animation: fadeIn 0.5s ease;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-
-            to {
-                opacity: 1;
-            }
-        }
-
-        tbody tr:hover {
-            background: rgba(0, 255, 136, 0.1);
-        }
-
-        td {
-            padding: 1.5rem 1rem;
-            color: var(--text);
-        }
-
-        .status {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            border: 3px solid;
-            font-weight: 900;
-            text-transform: uppercase;
-            font-size: 0.85rem;
-            letter-spacing: 1px;
-        }
-
-        .status-not_started {
-            background: var(--bg);
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-
-        .status-processing {
-            background: var(--bg);
-            border-color: var(--primary);
-            color: var(--primary);
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.6;
-            }
-        }
-
-        .status-completed {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: var(--bg);
-        }
-
-        .status-failed {
-            background: var(--error);
-            border-color: var(--error);
-            color: var(--text);
-        }
-
-        .caption-cell {
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 4rem 2rem;
-            color: var(--accent);
-            font-size: 1.2rem;
-        }
-
-        .refresh-btn {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: var(--secondary);
-            border: var(--border) solid var(--bg);
-            box-shadow: 4px 4px 0 var(--bg);
+            filter: url('#crayon-texture');
             cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            z-index: 1000;
         }
 
-        .refresh-btn:hover {
-            transform: rotate(180deg) scale(1.1);
-            box-shadow: 6px 6px 0 var(--bg);
+        .crayon-button:hover {
+            transform: scale(1.05) rotate(1deg);
+            box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.1);
         }
 
-        /* Loader styles */
-        .loader-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(10, 14, 39, 0.95);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .loader {
-            width: 80px;
-            height: 80px;
-            border: 6px solid var(--surface);
-            border-top: 6px solid var(--primary);
-            border-right: 6px solid var(--accent);
-            border-bottom: 6px solid var(--secondary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        .crayon-button:hover .material-symbols-outlined.spin-on-hover {
+            animation: spin 2s linear infinite;
         }
 
         @keyframes spin {
-            0% {
+            from {
                 transform: rotate(0deg);
             }
 
-            100% {
+            to {
                 transform: rotate(360deg);
             }
         }
 
-        .loader-text {
-            position: absolute;
-            margin-top: 120px;
-            font-size: 1.2rem;
-            font-weight: 900;
-            color: var(--primary);
-            text-transform: uppercase;
-            letter-spacing: 2px;
+        @keyframes drift {
+            0% {
+                transform: translateX(0);
+            }
+
+            50% {
+                transform: translateX(20px);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
         }
 
-        /* Modal styles */
+        .drift-slow {
+            animation: drift 8s ease-in-out infinite;
+        }
+
+        .drift-medium {
+            animation: drift 5s ease-in-out infinite;
+        }
+
+        .organic-shape {
+            border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+            filter: url('#crayon-texture');
+        }
+
+        .scribble-fill-green {
+            background: repeating-linear-gradient(60deg, #16a34a, #16a34a 2px, #15803d 3px, #16a34a 4px);
+        }
+
+        .progress-fill {
+            background: repeating-linear-gradient(80deg, #2563eb, #2563eb 2px, #1d4ed8 3px, #2563eb 5px);
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 48;
+            filter: url('#crayon-texture');
+        }
+
+        /* --- Modals --- */
         .modal {
-            display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(10, 14, 39, 0.95);
-            z-index: 2000;
-            animation: fadeIn 0.3s ease;
-            overflow-y: auto;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 2rem;
         }
 
         .modal.active {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
         }
 
         .modal-content {
-            background: var(--surface);
-            border: var(--border) solid var(--primary);
-            box-shadow: 12px 12px 0 var(--primary);
-            max-width: 800px;
+            border: 4px solid #2563eb;
             width: 100%;
-            max-height: 80vh;
-            position: relative;
-            animation: modalSlideIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            max-width: 900px;
+            border-radius: 24px;
             display: flex;
             flex-direction: column;
+            max-height: 85vh;
+            box-shadow: 12px 12px 0px 0px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
 
-        @keyframes modalSlideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-50px) scale(0.9);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
+        .modal-sketch-bg {
+            position: absolute;
+            inset: -8px;
+            border: 6px solid #2563eb;
+            backdrop-filter: blur(10px);
+            border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+            z-index: -1;
+            filter: url('#crayon-texture');
+            pointer-events: none;
         }
 
         .modal-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 3px dashed #adc6ff;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 2rem 2rem 1rem 2rem;
-            border-bottom: 3px solid var(--primary);
-            background: var(--surface);
-            position: sticky;
-            top: 0;
+            position: relative;
             z-index: 10;
         }
 
-        .modal-title {
-            font-size: 1.5rem;
-            font-weight: 900;
-            color: var(--primary);
-            text-transform: uppercase;
-        }
-
-        .modal-close {
-            background: var(--error);
-            color: var(--text);
-            border: 3px solid var(--bg);
-            width: 40px;
-            height: 40px;
-            border-radius: 0;
-            cursor: pointer;
-            font-size: 1.5rem;
-            font-weight: 900;
-            transition: all 0.2s ease;
-            box-shadow: 3px 3px 0 var(--bg);
-        }
-
-        .modal-close:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 5px 5px 0 var(--bg);
-        }
-
-        .code-block {
-            background: var(--bg);
-            border: 3px solid var(--accent);
-            padding: 1.5rem 1.5rem 1.5rem 1.5rem;
-            border-radius: 0;
+        .modal-body {
+            padding: 2rem;
             overflow-y: auto;
-            margin: 1.5rem 2rem 2rem 2rem;
             position: relative;
-            flex: 1;
+            z-index: 10;
         }
 
-        .code-block code {
-            font-family: 'Courier New', monospace;
-            color: var(--primary);
-            font-size: 0.95rem;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            word-break: break-all;
+        #resultText,
+        pre {
+            border: 3px dashed #adc6ff !important;
+            padding: 2rem !important;
+            border-radius: 20px !important;
+            font-family: 'Fredoka', sans-serif !important;
+            font-size: 1.5rem !important;
+            font-weight: 600 !important;
+            color: #fff !important;
+            white-space: pre-wrap !important;
+            word-break: break-all !important;
+            line-height: 1.6 !important;
+            filter: url('#crayon-texture');
+        }
+
+        .close-modal {
+            background: transparent;
+            border: none;
+            color: #dc2626;
+            font-size: 3rem;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .text-headline-lg {
+            filter: url('#crayon-texture');
         }
 
         .copy-btn {
-            position: sticky;
-            top: 0.5rem;
-            float: right;
-            background: var(--accent);
-            color: var(--bg);
-            border: 3px solid var(--bg);
-            padding: 0.5rem 1rem;
-            font-size: 0.8rem;
-            font-weight: 900;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 3px 3px 0 var(--bg);
-            z-index: 5;
+            background: #16a34a;
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 700;
+            box-shadow: 4px 4px 0px 0px #15803d;
+            transition: all 0.2s;
+            filter: url('#crayon-texture');
         }
 
         .copy-btn:hover {
             transform: translate(-2px, -2px);
-            box-shadow: 4px 4px 0 var(--bg);
+            box-shadow: 6px 6px 0px 0px #15803d;
         }
 
-        .copy-btn.copied {
-            background: var(--primary);
+        /* --- Specific UI Elements --- */
+        .status-modal-content {
+            max-width: 450px;
+            text-align: center;
+            padding: 3rem 2rem;
         }
 
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-
-            .upload-section,
-            .table-wrapper {
-                box-shadow: 4px 4px 0 var(--primary);
-            }
-
-            th,
-            td {
-                padding: 1rem 0.5rem;
-                font-size: 0.9rem;
-            }
-
-            .caption-cell {
-                max-width: 100px;
-            }
-
-            .modal-content {
-                padding: 0;
-            }
-
-            .modal-header {
-                padding: 1.5rem 1.5rem 1rem 1.5rem;
-            }
-
-            .code-block {
-                margin: 1.5rem 1.5rem 1.5rem 1.5rem;
-            }
+        .status-modal-bg {
+            position: absolute;
+            inset: -12px;
+            border: 8px solid #2563eb;
+            background: #e6f0fd;
+            border-radius: 20px 40px 15px 35px / 35px 15px 40px 20px;
+            z-index: -1;
+            filter: url('#crayon-texture');
+            pointer-events: none;
         }
 
-        .notification {
-            position: fixed;
-            top: 2rem;
-            right: 2rem;
-            padding: 1.5rem 2rem;
-            background: var(--primary);
-            color: var(--bg);
-            border: var(--border) solid var(--bg);
-            box-shadow: 6px 6px 0 var(--bg);
-            font-weight: 900;
-            z-index: 2000;
-            animation: slideInRight 0.5s ease, slideOutRight 0.5s ease 3.5s;
+        .status-icon-container {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 20px 15px 25px 18px / 18px 25px 15px 20px;
+            border: 4px solid currentColor;
+            filter: url('#crayon-texture');
+            position: relative;
+            z-index: 20;
         }
 
-        @keyframes slideInRight {
-            from {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+        .status-icon-bg {
+            position: absolute;
+            inset: 0;
+            background: currentColor;
+            opacity: 0.15;
+            z-index: -1;
+            border-radius: inherit;
         }
 
-        @keyframes slideOutRight {
-            to {
-                transform: translateX(400px);
-                opacity: 0;
-            }
+        .modal-decoration {
+            position: absolute;
+            pointer-events: none;
+            opacity: 0.3;
+            z-index: 5;
+            filter: url('#crayon-texture');
+        }
+
+        .table-container::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+            border: 2px solid #f1f5f9;
+        }
+
+        .dragging {
+            border-color: #16a34a !important;
+            background-color: #f0fdf4 !important;
         }
     </style>
 </head>
 
-<body>
-    <div class="container">
-        <header>
-            <h1>Audio Caption Generator</h1>
-            <p class="subtitle">Transcribe • Process • Analyze</p>
-        </header>
+<body class="h-screen flex flex-col overflow-hidden relative">
+    <!-- Main Background Decorations -->
+    <div class="fixed inset-0 pointer-events-none overflow-hidden -z-10 opacity-40">
+        <!-- Stars -->
+        <span
+            class="material-symbols-outlined absolute text-5xl text-crayon-yellow top-20 left-[10%] rotate-12 crayon-heavy animate-pulse">star</span>
+        <span
+            class="material-symbols-outlined absolute text-3xl text-crayon-orange top-[40%] left-[5%] -rotate-12 crayon-filter">star</span>
+        <span
+            class="material-symbols-outlined absolute text-4xl text-crayon-yellow bottom-[20%] left-[15%] rotate-45 animate-pulse">star</span>
+        <span
+            class="material-symbols-outlined absolute text-6xl text-crayon-orange top-[15%] right-[15%] rotate-[-15deg] crayon-heavy">star</span>
+        <span
+            class="material-symbols-outlined absolute text-3xl text-crayon-yellow bottom-[30%] right-[10%] rotate-12 animate-pulse">star</span>
 
-        <div class="upload-section">
-            <h2 style="margin-bottom: 1.5rem; color: var(--primary);">Upload Audio File</h2>
-            <div class="upload-zone" id="uploadZone">
-                <p style="font-size: 1.2rem; margin-bottom: 1rem;">📁 Drop audio file here or click to browse</p>
-                <p style="color: var(--accent); font-size: 0.9rem;">Supported: WAV, MP3, FLAC, OGG, M4A, AAC</p>
-                <input type="file" id="audioFile" accept=".wav,.mp3,.flac,.ogg,.m4a,.aac">
+        <!-- Clouds -->
+        <span
+            class="material-symbols-outlined absolute text-[120px] text-crayon-blue top-[10%] left-[25%] opacity-20 drift-slow">cloud</span>
+        <span
+            class="material-symbols-outlined absolute text-[80px] text-crayon-purple bottom-[15%] left-[40%] opacity-10 drift-medium">cloud</span>
+        <span
+            class="material-symbols-outlined absolute text-[100px] text-crayon-blue top-[60%] right-[25%] opacity-15 drift-slow">cloud</span>
+        <span
+            class="material-symbols-outlined absolute text-[150px] text-crayon-purple top-[30%] right-[5%] opacity-10 drift-medium">cloud</span>
+
+        <!-- Hearts -->
+        <span
+            class="material-symbols-outlined absolute text-4xl text-crayon-red top-[25%] left-[18%] rotate-[-15deg] crayon-filter animate-pulse">favorite</span>
+        <span
+            class="material-symbols-outlined absolute text-2xl text-crayon-red bottom-[10%] right-[20%] rotate-12 crayon-filter">favorite</span>
+        <span
+            class="material-symbols-outlined absolute text-5xl text-crayon-red top-[70%] left-[8%] rotate-[10deg] animate-pulse">favorite</span>
+    </div>
+
+    <!-- SVG Filters -->
+    <svg height="0" width="0" style="position: absolute;">
+        <filter id="crayon-texture" x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.4" numOctaves="3" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+        <filter id="crayon-heavy" x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="4" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+    </svg>
+
+    <!-- Header -->
+    <header
+        class="bg-surface flex justify-between items-center w-[calc(100%-48px)] mx-6 mt-6 px-8 py-5 crayon-border-green z-10 shrink-0 organic-shape shadow-sm">
+        <div class="flex items-center gap-5">
+            <div
+                class="bg-crayon-green text-white w-14 h-14 rounded-2xl flex items-center justify-center border-[3px] border-crayon-green rotate-[-4deg] crayon-filter scribble-fill-green shadow-md">
+                <span class="material-symbols-outlined text-4xl">mic</span>
             </div>
-            <button class="btn" id="uploadBtn" style="margin-top: 1.5rem; width: 100%;">
-                🚀 Upload & Process
+            <div class="flex flex-col -rotate-1">
+                <h1 class="text-headline-lg text-[#4c1d95] leading-none mb-1">STT</h1>
+                <span class="text-label-sm text-[#4b5563] font-bold">Speech to Text Generation</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-10 relative">
+            <div class="absolute -left-48 top-2 rotate-12 crayon-heavy">
+                <span class="material-symbols-outlined text-4xl text-crayon-yellow">star</span>
+            </div>
+            <div class="absolute -left-24 top-0 -rotate-6 crayon-heavy opacity-80">
+                <span class="material-symbols-outlined text-5xl text-crayon-blue">cloud</span>
+            </div>
+            <button id="apiDocBtn"
+                class="flex items-center gap-2 text-headline-md text-crayon-purple px-8 py-3 bg-surface crayon-button rotate-1 shadow-md">
+                <span class="material-symbols-outlined text-3xl">menu_book</span>
+                API DOC
             </button>
-        </div>
-
-        <div class="table-section">
-            <h2 style="margin-bottom: 1.5rem; color: var(--secondary);">Processing Queue</h2>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Filename</th>
-                            <th>Status</th>
-                            <th>Est. Wait</th>
-                            <th>Caption</th>
-                            <th>Created</th>
-                            <th>Processed</th>
-                        </tr>
-                    </thead>
-                    <tbody id="filesTable">
-                        <tr>
-                            <td colspan="6" class="empty-state">No files uploaded yet. Start by uploading an audio file!
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div
+                class="flex items-center gap-4 bg-surface px-6 py-3 rounded-full border-[4px] border-crayon-green organic-shape shadow-md">
+                <div id="healthDot" class="w-4 h-4 rounded-full bg-crayon-green shadow-[0_0_12px_rgba(22,163,74,0.5)]">
+                </div>
+                <span id="healthText" class="text-headline-md text-crayon-green text-2xl">Service Online</span>
+                <div class="text-crayon-orange flex items-center justify-center rotate-[15deg]">
+                    <span class="material-symbols-outlined text-4xl">light_mode</span>
+                </div>
             </div>
         </div>
-    </div>
+    </header>
 
-    <button class="refresh-btn" id="refreshBtn" title="Refresh">🔄</button>
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden p-8 gap-8 mx-auto w-full relative">
+        <!-- Input Section -->
+        <section class="w-[450px] flex flex-col gap-8">
+            <div id="uploadZone"
+                class="flex flex-col gap-6 p-8 bg-surface crayon-border-blue flex-1 relative organic-shape cursor-pointer group shadow-sm hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-4 mb-2 rotate-1">
+                    <div
+                        class="bg-crayon-blue text-white rounded-full w-14 h-14 flex items-center justify-center border-2 border-crayon-blue crayon-filter shadow-md">
+                        <span class="material-symbols-outlined text-4xl">upload</span>
+                    </div>
+                    <div>
+                        <h2 class="text-headline-md text-crayon-blue leading-none mb-1 flex items-center gap-2">
+                            INPUT
+                            <span class="material-symbols-outlined text-crayon-red text-2xl rotate-12">favorite</span>
+                        </h2>
+                        <p class="text-label-sm text-[#6b7280]">Upload audio files</p>
+                    </div>
+                </div>
 
-    <!-- Loader -->
-    <div class="loader-overlay" id="loader" style="display: none;">
-        <div>
-            <div class="loader"></div>
-            <div class="loader-text">Uploading...</div>
-        </div>
-    </div>
+                <div
+                    class="flex-1 flex flex-col items-center justify-center relative border-[4px] border-dashed border-[#adc6ff] rounded-[32px] bg-surface p-6 group-hover:bg-blue-50 transition-colors">
+                    <div class="relative w-48 h-48 mb-8 flex items-center justify-center">
+                        <div
+                            class="absolute w-36 h-44 bg-blue-100 border-[3px] border-crayon-blue rounded-xl rotate-[12deg] right-4 bottom-4 organic-shape opacity-60">
+                        </div>
+                        <div
+                            class="absolute w-36 h-44 bg-surface border-[3px] border-crayon-blue rounded-xl z-10 flex flex-col items-center p-4 organic-shape rotate-[-4deg] shadow-sm">
+                            <div
+                                class="w-8 h-8 rounded-full bg-crayon-yellow self-start mb-4 border-[2px] border-[#1A1A1A]">
+                            </div>
+                            <div class="w-full h-2 bg-[#adc6ff] rounded-full mb-3"></div>
+                            <div class="w-2/3 h-2 bg-[#adc6ff] rounded-full self-start"></div>
+                        </div>
+                        <div
+                            class="absolute -bottom-4 -right-4 bg-crayon-blue text-white rounded-full w-16 h-16 flex items-center justify-center border-[4px] border-white z-20 shadow-xl group-hover:scale-110 transition-transform rotate-12 crayon-filter">
+                            <span class="material-symbols-outlined text-4xl">arrow_upward</span>
+                        </div>
+                    </div>
+                    <p class="text-headline-md text-[#1A1A1A] mb-1 font-bold">Drag & drop audio</p>
+                    <p class="text-label-sm text-crayon-purple mb-8 font-bold">or click to browse</p>
+                    <div class="flex gap-2 mt-auto w-full justify-center flex-wrap">
+                        <span
+                            class="px-4 py-1.5 bg-surface border-[2px] border-crayon-blue text-crayon-blue text-lg font-bold rounded-xl organic-shape -rotate-2">WAV</span>
+                        <span
+                            class="px-4 py-1.5 bg-surface border-[2px] border-crayon-green text-crayon-green text-lg font-bold rounded-xl organic-shape rotate-1">MP3</span>
+                        <span
+                            class="px-4 py-1.5 bg-surface border-[2px] border-crayon-red text-crayon-red text-lg font-bold rounded-xl organic-shape -rotate-1">FLAC</span>
+                    </div>
+                </div>
+                <input type="file" id="fileInput" hidden accept="audio/*">
+            </div>
+        </section>
 
-    <!-- Modal -->
-    <div class="modal" id="captionModal">
+        <!-- Activity Section -->
+        <section
+            class="flex-1 flex flex-col bg-surface crayon-border-purple p-8 relative organic-shape overflow-hidden shadow-sm">
+            <div class="flex items-center justify-between mb-8">
+                <div class="flex items-center gap-4 rotate-1">
+                    <div
+                        class="bg-crayon-purple text-white rounded-full w-14 h-14 flex items-center justify-center border-[3px] border-crayon-purple shadow-md">
+                        <span class="material-symbols-outlined text-4xl">schedule</span>
+                    </div>
+                    <div>
+                        <h2 class="text-headline-lg text-[#4c1d95] leading-none mb-1">ACTIVITY</h2>
+                        <p class="text-label-sm text-[#6b7280] font-bold">Your recently processed audio</p>
+                    </div>
+                </div>
+                <div class="relative w-40 h-20 flex items-center">
+                    <svg class="absolute left-[-30px] top-4 w-32 h-16 crayon-filter text-crayon-yellow" fill="none"
+                        stroke="currentColor" stroke-dasharray="6 6" stroke-linecap="round" stroke-width="3"
+                        viewBox="0 0 100 50">
+                        <path d="M10,40 Q40,50 60,30 T90,10" />
+                    </svg>
+                    <span
+                        class="material-symbols-outlined text-5xl text-crayon-orange absolute right-0 top-0 rotate-12">send</span>
+                </div>
+                <button onclick="loadTasks()"
+                    class="flex items-center gap-2 text-headline-md text-crayon-blue px-8 py-3 bg-surface crayon-button border-[4px] -rotate-1 shadow-md">
+                    <span class="material-symbols-outlined text-3xl spin-on-hover">sync</span>
+                    Refresh
+                </button>
+            </div>
+
+            <!-- List Header -->
+            <div class="flex w-full px-6 pb-4 border-b-[5px] text-[#4c1d95] font-bold text-xl uppercase tracking-wider"
+                style="border-color: rgba(124, 58, 237, 0.4); border-radius: 20px 15px 25px 18px / 18px 25px 15px 20px; filter: url(#crayon-texture);">
+                <div class="w-1/2">FILE NAME</div>
+                <div class="w-1/6 text-center">STATUS</div>
+                <div class="w-1/4 text-center">PROGRESS</div>
+                <div class="w-[10%] text-center">ACTION</div>
+            </div>
+
+            <!-- Task List Body -->
+            <div id="queueBody" class="flex flex-col gap-5 mt-6 overflow-y-auto flex-1 table-container pr-4">
+                <div class="text-center py-32 text-headline-md text-[#94a3b8] font-bold opacity-60">No tasks found
+                    yet...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modals -->
+    <!-- Result & API Modal -->
+    <div id="resultModal" class="modal">
         <div class="modal-content">
+            <div class="modal-sketch-bg"></div>
+
+            <!-- Decorations -->
+            <span
+                class="material-symbols-outlined modal-decoration text-6xl text-crayon-yellow top-4 left-4 -rotate-12">star</span>
+            <span
+                class="material-symbols-outlined modal-decoration text-8xl text-crayon-blue top-12 right-20 opacity-20">cloud</span>
+            <span
+                class="material-symbols-outlined modal-decoration text-4xl text-crayon-orange bottom-10 left-10 rotate-45">star</span>
+            <span
+                class="material-symbols-outlined modal-decoration text-7xl text-crayon-purple bottom-4 right-4 -rotate-6 opacity-40">cloud</span>
+
             <div class="modal-header">
-                <div class="modal-title">📄 Caption Details</div>
-                <button class="modal-close" onclick="closeModal()">×</button>
+                <div class="flex items-center gap-6">
+                    <span id="modalTitle" class="text-headline-lg text-[#1e1b4b]">Transcription Result</span>
+                    <button id="copyBtn" onclick="copyResult()" class="copy-btn">📋 Copy Text</button>
+                </div>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
             </div>
-            <div class="code-block">
-                <button class="copy-btn" onclick="copyCaption()">📋 Copy</button>
-                <code id="captionCode"></code>
+            <div class="modal-body">
+                <pre id="resultText"></pre>
             </div>
         </div>
     </div>
 
+    <!-- Status Modal -->
+    <div id="statusModal" class="modal">
+        <div class="modal-content status-modal-content">
+            <div id="statusBg" class="status-modal-bg"></div>
+
+            <span
+                class="material-symbols-outlined modal-decoration text-4xl text-crayon-yellow top-6 right-6 rotate-12">star</span>
+            <span
+                class="material-symbols-outlined modal-decoration text-6xl text-crayon-blue top-10 left-4 opacity-30">cloud</span>
+            <span
+                class="material-symbols-outlined modal-decoration text-3xl text-crayon-orange bottom-8 right-10 -rotate-12">star</span>
+            <span
+                class="material-symbols-outlined modal-decoration text-5xl text-crayon-purple bottom-10 left-8 rotate-6 opacity-30">cloud</span>
+
+            <div id="statusIconContainer" class="status-icon-container text-crayon-blue">
+                <div class="status-icon-bg"></div>
+                <span id="statusIcon" class="material-symbols-outlined text-6xl animate-bounce">upload</span>
+            </div>
+            <h2 id="statusMessage" class="text-headline-lg text-crayon-blue mb-2">Uploading...</h2>
+            <p id="statusSubMessage" class="text-body-lg text-[#4b5563]">Processing your request, please wait.</p>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
     <script>
-        const API_URL = '/api';
-        let selectedFile = null;
+        // --- Configuration ---
+        const API_BASE = '/api';
 
-        // Store captions by file ID to avoid inline JSON issues with large texts
-        const captionStore = new Map();
+        // --- DOM Elements ---
+        const UI = {
+            uploadZone: document.getElementById('uploadZone'),
+            fileInput: document.getElementById('fileInput'),
+            queueBody: document.getElementById('queueBody'),
+            resultModal: document.getElementById('resultModal'),
+            statusModal: document.getElementById('statusModal'),
+            resultText: document.getElementById('resultText'),
+            modalTitle: document.getElementById('modalTitle'),
+            statusMessage: document.getElementById('statusMessage'),
+            statusSubMessage: document.getElementById('statusSubMessage'),
+            statusIcon: document.getElementById('statusIcon'),
+            statusIconContainer: document.getElementById('statusIconContainer'),
+            statusBg: document.getElementById('statusBg'),
+            healthDot: document.getElementById('healthDot'),
+            healthText: document.getElementById('healthText'),
+            apiDocBtn: document.getElementById('apiDocBtn')
+        };
 
-        // Upload zone interactions
-        const uploadZone = document.getElementById('uploadZone');
-        const fileInput = document.getElementById('audioFile');
-        const loader = document.getElementById('loader');
-        const uploadBtn = document.getElementById('uploadBtn');
+        // --- UI Helpers ---
+        function updateStatusModal(type, msg, subMsg) {
+            UI.statusMessage.innerText = msg;
+            UI.statusSubMessage.innerText = subMsg || "Processing your request, please wait.";
+            UI.statusIconContainer.className = "status-icon-container";
+            UI.statusIcon.className = "material-symbols-outlined text-6xl";
+            UI.statusBg.style.borderColor = "";
 
-        uploadZone.addEventListener('click', () => fileInput.click());
-
-        uploadZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadZone.classList.add('dragging');
-        });
-
-        uploadZone.addEventListener('dragleave', () => {
-            uploadZone.classList.remove('dragging');
-        });
-
-        uploadZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadZone.classList.remove('dragging');
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                fileInput.files = e.dataTransfer.files;
-                selectedFile = file;
-                showNotification(`Selected: ${file.name}`);
+            if (type === 'uploading') {
+                UI.statusIconContainer.classList.add('text-crayon-blue');
+                UI.statusIcon.innerText = "upload";
+                UI.statusIcon.classList.add('animate-bounce');
+                UI.statusBg.style.borderColor = "#2563eb";
+            } else if (type === 'success') {
+                UI.statusIconContainer.classList.add('text-crayon-green');
+                UI.statusIcon.innerText = "check_circle";
+                UI.statusBg.style.borderColor = "#16a34a";
+            } else if (type === 'error') {
+                UI.statusIconContainer.classList.add('text-crayon-red');
+                UI.statusIcon.innerText = "error";
+                UI.statusBg.style.borderColor = "#dc2626";
             }
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            selectedFile = e.target.files[0];
-            if (selectedFile) {
-                showNotification(`Selected: ${selectedFile.name}`);
-                // Auto-upload if triggered by upload button click
-                if (pendingUpload) {
-                    pendingUpload = false;
-                    uploadFile();
-                }
-            }
-        });
-
-        // Flag to track if upload was triggered without file selection
-        let pendingUpload = false;
-
-        // Upload file function
-        async function uploadFile() {
-            if (!selectedFile) {
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('audio', selectedFile);
-
-            // Show loader
-            loader.style.display = 'flex';
-            uploadBtn.disabled = true;
-
-            try {
-                const response = await fetch(`${API_URL}/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    showNotification('File uploaded successfully! 🎉');
-                    selectedFile = null;
-                    fileInput.value = '';
-                    loadFiles();
-                } else {
-                    showNotification(data.error || 'Upload failed', 'error');
-                }
-            } catch (error) {
-                showNotification('Network error: ' + error.message, 'error');
-            } finally {
-                // Hide loader
-                loader.style.display = 'none';
-                uploadBtn.disabled = false;
-            }
-        }
-
-        // Upload button - one-click flow
-        uploadBtn.addEventListener('click', async () => {
-            if (!selectedFile) {
-                // No file selected - trigger file picker and auto-upload after selection
-                pendingUpload = true;
-                fileInput.click();
-                return;
-            }
-
-            // File already selected - upload directly
-            uploadFile();
-        });
-
-        // Load files
-        async function loadFiles() {
-            try {
-                const response = await fetch(`${API_URL}/files`);
-                const files = await response.json();
-
-                const tbody = document.getElementById('filesTable');
-
-                // Clear old captions and store new ones
-                captionStore.clear();
-
-                if (files.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No files uploaded yet. Start by uploading an audio file!</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = files.map(file => {
-                    // Store caption in Map to avoid inline JSON issues with large texts
-                    if (file.caption) {
-                        captionStore.set(file.id, file.caption);
-                    }
-
-                    const captionPreview = file.caption ?
-                        (file.caption.length > 50 ? file.caption.substring(0, 50) + '...' : file.caption) :
-                        '—';
-
-                    // Format estimated wait time
-                    let estWait = '—';
-                    if (file.status === 'not_started' && file.estimated_start_seconds !== null) {
-                        const seconds = file.estimated_start_seconds;
-                        if (seconds < 60) {
-                            estWait = `${seconds}s`;
-                        } else if (seconds < 3600) {
-                            const mins = Math.floor(seconds / 60);
-                            const secs = seconds % 60;
-                            estWait = secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
-                        } else {
-                            const hours = Math.floor(seconds / 3600);
-                            const mins = Math.floor((seconds % 3600) / 60);
-                            estWait = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-                        }
-                        // Add queue position
-                        if (file.queue_position) {
-                            estWait = `#${file.queue_position} (${estWait})`;
-                        }
-                    } else if (file.status === 'processing') {
-                        estWait = '⏳ Processing...';
-                    }
-
-                    return `
-                    <tr>
-                        <td><strong>${file.filename}</strong></td>
-                        <td><span class="status status-${file.status}">${file.status.replace('_', ' ')}</span></td>
-                        <td>${estWait}</td>
-                        <td class="caption-cell">
-                            ${file.caption ?
-                            `<button class="btn btn-small btn-secondary" onclick="showCaption('${file.id}')" style="margin-left: 0.5rem;">Show</button>`
-                            : '—'}
-                        </td>
-                        <td>${new Date(file.created_at).toLocaleString()}</td>
-                        <td>${file.processed_at ? new Date(file.processed_at).toLocaleString() : '—'}</td>
-                    </tr>
-                `;
-                }).join('');
-            } catch (error) {
-                console.error('Error loading files:', error);
-            }
-        }
-
-        // Modal functions
-        function showCaption(fileId) {
-            const caption = captionStore.get(fileId);
-            if (!caption) {
-                console.error('Caption not found for file:', fileId);
-                return;
-            }
-
-            const modal = document.getElementById('captionModal');
-            const codeBlock = document.getElementById('captionCode');
-
-            // Parse JSON if it's a string
-            let formattedCaption = caption;
-            try {
-                const parsed = JSON.parse(caption);
-                formattedCaption = JSON.stringify(parsed, null, 2);
-            } catch (e) {
-                // If not JSON, use as is
-                formattedCaption = caption;
-            }
-
-            codeBlock.textContent = formattedCaption;
-            modal.classList.add('active');
         }
 
         function closeModal() {
-            const modal = document.getElementById('captionModal');
-            modal.classList.remove('active');
+            UI.resultModal.classList.remove('active');
         }
 
-        function copyCaption() {
-            const codeBlock = document.getElementById('captionCode');
-            const copyBtn = event.target;
-
-            navigator.clipboard.writeText(codeBlock.textContent).then(() => {
-                const originalText = copyBtn.textContent;
-                copyBtn.textContent = '✓ Copied!';
-                copyBtn.classList.add('copied');
-
-                setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.classList.remove('copied');
-                }, 2000);
+        function copyResult() {
+            const text = UI.resultText.innerText;
+            const btn = document.getElementById('copyBtn');
+            navigator.clipboard.writeText(text).then(() => {
+                const orig = btn.innerText;
+                btn.innerText = '✓ Copied!';
+                setTimeout(() => { btn.innerText = orig; }, 2000);
             });
         }
 
-        // Close modal on background click
-        document.getElementById('captionModal').addEventListener('click', (e) => {
-            if (e.target.id === 'captionModal') {
-                closeModal();
+        // --- API Functions ---
+        async function loadTasks() {
+            try {
+                const res = await fetch(`${API_BASE}/tasks`);
+                const data = await res.json();
+                renderQueue(data);
+            } catch (err) {
+                console.error("Load tasks error:", err);
             }
-        });
-
-        // Close modal on ESC key
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeModal();
-            }
-        });
-
-        // Refresh button
-        document.getElementById('refreshBtn').addEventListener('click', loadFiles);
-
-        // Auto-refresh every 10 minutes
-        setInterval(loadFiles, 1000 * 60 * 10);
-
-        // Show notification
-        function showNotification(message, type = 'success') {
-            const notification = document.createElement('div');
-            notification.className = 'notification';
-            notification.textContent = message;
-
-            if (type === 'error') {
-                notification.style.background = 'var(--error)';
-            }
-
-            document.body.appendChild(notification);
-
-            setTimeout(() => {
-                notification.remove();
-            }, 4000);
         }
 
-        // Initial load
-        loadFiles();
+        async function handleFile(file) {
+            if (!file) return;
+
+            UI.statusModal.classList.add('active');
+            updateStatusModal('uploading', "Uploading...", "Sending file to server...");
+
+            const formData = new FormData();
+            formData.append('audio', file);
+
+            try {
+                const res = await fetch(`${API_BASE}/tasks/upload`, { method: 'POST', body: formData });
+                if (res.ok) {
+                    updateStatusModal('success', "Success! ✨", "File uploaded and task created.");
+                    setTimeout(() => {
+                        UI.statusModal.classList.remove('active');
+                        loadTasks();
+                    }, 1200);
+                } else {
+                    updateStatusModal('error', "Upload Failed ❌", "Something went wrong on our end.");
+                    setTimeout(() => UI.statusModal.classList.remove('active'), 2000);
+                }
+            } catch (err) {
+                console.error("Upload error:", err);
+                updateStatusModal('error', "Connection Error ⚠️", "Could not reach the server.");
+                setTimeout(() => UI.statusModal.classList.remove('active'), 2000);
+            }
+        }
+
+        async function showResult(id) {
+            try {
+                const res = await fetch(`${API_BASE}/tasks/${id}`);
+                const data = await res.json();
+                const text = data.result;
+
+                UI.modalTitle.innerText = "Transcription Result";
+
+                let formatted = text;
+                try {
+                    const parsed = JSON.parse(text);
+                    formatted = JSON.stringify(parsed, null, 2);
+                } catch (e) { /* Not JSON, use raw text */ }
+
+                UI.resultText.innerText = formatted;
+                UI.resultModal.classList.add('active');
+            } catch (err) {
+                console.error("Show result error:", err);
+            }
+        }
+
+        async function checkHealth() {
+            try {
+                const res = await fetch('/health');
+                const data = await res.json();
+                const healthy = data.status === 'healthy';
+
+                UI.healthDot.className = `w-4 h-4 rounded-full ${healthy ? 'bg-crayon-green' : 'bg-crayon-red'} shadow-md`;
+                UI.healthText.innerText = healthy ? 'Service Online' : 'Service Down';
+                UI.healthText.className = `text-headline-md font-bold ${healthy ? 'text-crayon-green' : 'text-crayon-red'}`;
+            } catch (e) {
+                UI.healthDot.className = 'w-4 h-4 rounded-full bg-crayon-red shadow-md';
+                UI.healthText.innerText = 'Connection Error';
+                UI.healthText.className = 'text-headline-md font-bold text-crayon-red';
+            }
+        }
+
+        // --- Renderers ---
+        function renderQueue(tasks) {
+            if (tasks.length === 0) {
+                UI.queueBody.innerHTML = '<div class="text-center py-32 text-headline-md text-[#94a3b8] font-bold opacity-60">No tasks found yet...</div>';
+                return;
+            }
+
+            UI.queueBody.innerHTML = tasks.map((t, i) => {
+                const rotate = i % 2 === 0 ? 'rotate-[0.3deg]' : '-rotate-[0.3deg]';
+                const status = t.status.toLowerCase();
+                const colors = {
+                    completed: { text: 'crayon-green', bg: 'bg-[#f0fdf4]' },
+                    failed: { text: 'crayon-red', bg: 'bg-[#fef2f2]' },
+                    processing: { text: 'crayon-blue', bg: 'bg-[#eff6ff]' },
+                    pending: { text: 'crayon-purple', bg: 'bg-[#f5f3ff]' }
+                };
+                const theme = colors[status] || colors.pending;
+
+                return `
+                    <div class="task-card flex items-center p-6 bg-surface hover:border-crayon-purple transition-colors shadow-sm ${rotate}">
+                        <div class="flex items-center gap-5 w-1/2">
+                            <div class="w-16 h-20 border-[3px] border-crayon-blue rounded-xl p-2 bg-surface flex shadow-sm organic-shape rotate-[-3deg]">
+                                <div class="w-1/2 h-full border-r-[2px] border-[#adc6ff] flex flex-col gap-1.5 p-0.5">
+                                    <div class="w-full h-2 bg-[#adc6ff] rounded-sm"></div>
+                                    <div class="w-full h-2 bg-[#adc6ff] rounded-sm"></div>
+                                    <div class="w-full h-2 bg-[#adc6ff] rounded-sm"></div>
+                                </div>
+                                <div class="w-1/2 h-full flex flex-col gap-1.5 p-0.5 relative">
+                                    <div class="w-full h-2 bg-[#adc6ff] rounded-sm"></div>
+                                    <div class="mt-auto flex gap-1.5 bottom-1 absolute">
+                                        <div class="w-2.5 h-2.5 bg-crayon-yellow rounded-sm"></div>
+                                        <div class="w-2.5 h-2.5 bg-crayon-green rounded-sm"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-headline-md text-[#1A1A1A] leading-tight font-bold mb-1">${t.filename}</span>
+                                <div class="text-label-sm text-[#94a3b8] font-bold">${t.id.substring(0, 12)}</div>
+                            </div>
+                        </div>
+                        <div class="w-1/6 flex justify-center">
+                            <div class="px-4 py-2 ${theme.bg} border-[3px] border-${theme.text} text-${theme.text} font-bold rounded-2xl uppercase tracking-tight crayon-filter">
+                                ${status.replace('_', ' ')}
+                            </div>
+                        </div>
+                        <div class="w-1/4 flex items-center justify-center gap-4">
+                            <div class="flex-1 h-6 border-[3px] border-[#adc6ff] rounded-full overflow-hidden bg-surface p-[2px] crayon-filter">
+                                <div class="h-full rounded-full progress-fill shadow-sm" style="width:${t.progress}%"></div>
+                            </div>
+                            <span class="text-headline-md text-2xl text-[#1A1A1A] font-bold w-12 text-right">${status === 'completed' ? '' : t.progress + '%'}</span>
+                        </div>
+                        <div class="w-[10%] flex justify-center">
+                            ${status === 'completed' ? `
+                                <button onclick="showResult('${t.id}')" class="flex items-center gap-2 px-5 py-2.5 bg-white border-[3px] border-crayon-blue text-crayon-blue font-bold rounded-2xl hover:bg-crayon-blue hover:text-white transition-all shadow-sm crayon-filter">
+                                    <span class="material-symbols-outlined text-2xl">visibility</span>
+                                    VIEW
+                                </button>
+                            ` : '—'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- Event Listeners ---
+        UI.uploadZone.onclick = () => UI.fileInput.click();
+        UI.uploadZone.ondragover = (e) => { e.preventDefault(); UI.uploadZone.classList.add('dragging'); };
+        UI.uploadZone.ondragleave = () => UI.uploadZone.classList.remove('dragging');
+        UI.uploadZone.ondrop = (e) => {
+            e.preventDefault();
+            UI.uploadZone.classList.remove('dragging');
+            handleFile(e.dataTransfer.files[0]);
+        };
+        UI.fileInput.onchange = (e) => handleFile(e.target.files[0]);
+        UI.apiDocBtn.onclick = () => {
+            const doc = {
+                base_url: window.location.origin,
+                endpoints: [
+                    { method: "POST", path: "/api/tasks/upload", desc: "Upload audio for STT" },
+                    { method: "GET", path: "/api/tasks", desc: "List all tasks" },
+                    { method: "GET", path: "/api/tasks/{task_id}", desc: "Get STT result" },
+                    { method: "GET", path: "/health", desc: "Service health" }
+                ],
+                example_usage: `curl -X POST -F 'audio=@file.wav' ${window.location.origin}/api/tasks/upload`
+            };
+            UI.resultText.innerText = JSON.stringify(doc, null, 2);
+            UI.modalTitle.innerText = "API Documentation";
+            UI.resultModal.classList.add('active');
+        };
+
+        // --- Lifecycle ---
+        loadTasks();
+        setInterval(loadTasks, 5000);
+        setInterval(checkHealth, 10000);
     </script>
 </body>
 
