@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stt-runner"
+version = "1.0.0"
+authors = [
+    {name = "Jebin Einstein", email = "jebin@gmail.com"}
+]
+description = "A flexible, multi-engine Speech-to-Text runner"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "torch",
+    "ffmpeg-python",
+    "numpy",
+]
+
+[project.optional-dependencies]
+openai = [
+    "openai-whisper>=20231117",
+    "python-dotenv",
+    "psutil",
+]
+fasterwhisper = [
+    "faster-whisper",
+    "python-dotenv",
+    "requests",
+    "psutil",
+]
+parakeet = [
+    "nemo_toolkit[asr]",
+    "lhotse==1.27.0",
+    "cuda-python>=12.3",
+    "librosa",
+    "soundfile",
+    "typing_extensions",
+    "python-dotenv",
+    "psutil",
+]
+all = [
+    "openai-whisper>=20231117",
+    "faster-whisper",
+    "nemo_toolkit[asr]",
+    "lhotse==1.27.0",
+    "cuda-python>=12.3",
+    "librosa",
+    "soundfile",
+    "typing_extensions",
+    "python-dotenv",
+    "psutil",
+    "requests",
+]
+
+[project.scripts]
+stt-transcribe = "stt.runner:main"
+
+[project.urls]
+Homepage = "https://github.com/jebin2/STT"
+
+[tool.setuptools.packages.find]
+include = ["stt*"]
+exclude = ["hf_backend*"]
