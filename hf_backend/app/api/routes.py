@@ -159,14 +159,19 @@ async def websocket_transcribe(websocket: WebSocket):
 
         async def bg_process():
             while True:
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(1.0)
                 try:
-                    results = await loop.run_in_executor(None, stt.process)
-                    for r in results:
-                        try:
-                            await websocket.send_json({"type": "transcript", **r})
-                        except Exception:
-                            return
+                    result = await loop.run_in_executor(None, stt.process)
+                    if not result:
+                        continue
+                    try:
+                        if result["commit"]:
+                            await websocket.send_json({"type": "commit", **result["commit"]})
+                        await websocket.send_json(
+                            {"type": "tentative", "text": result["tentative"]}
+                        )
+                    except Exception:
+                        return
                 except asyncio.CancelledError:
                     return
                 except Exception as e:
@@ -210,8 +215,10 @@ async def websocket_transcribe(websocket: WebSocket):
             if connected:
                 try:
                     remaining = stt.flush()
-                    for r in remaining:
-                        await websocket.send_json({"type": "transcript", **r, "is_final": True})
+                    if remaining and remaining["commit"]:
+                        await websocket.send_json(
+                            {"type": "commit", **remaining["commit"], "is_final": True}
+                        )
                     await websocket.send_json({"type": "done"})
                     await websocket.close()
                 except Exception:

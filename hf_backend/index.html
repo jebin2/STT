@@ -934,6 +934,26 @@
         let livePreBuffer = [];
         let wsReady = false;
         let liveFinalizeTimer = null;
+        let liveCommitted = '';
+        let liveTentative = '';
+
+        function escapeHtml(s) {
+            return s.replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function renderLiveTranscript() {
+            const committed = liveCommitted ? escapeHtml(liveCommitted) : '';
+            const tentative = liveTentative
+                ? `<span style="opacity:0.45">${escapeHtml(liveTentative)}</span>` : '';
+            if (!committed && !tentative) {
+                liveTranscript.innerText = '🎤 Listening...';
+            } else {
+                liveTranscript.innerHTML = (committed + (committed && tentative ? ' ' : '') + tentative);
+            }
+            liveTranscript.scrollTop = liveTranscript.scrollHeight;
+        }
         const WS_SAMPLE_RATE = 16000;
 
         function openLiveModal() {
@@ -1023,15 +1043,16 @@
                                     liveAudioCtx.sampleRate
                                 );
                             }
-                            liveTranscript.innerText = '🎤 Listening...';
-                        } else if (msg.type === 'transcript') {
-                            const line = `[${msg.start}s → ${msg.end}s] ${msg.text}`;
-                            if (liveTranscript.innerText === '🎤 Listening...') {
-                                liveTranscript.innerText = line;
-                            } else {
-                                liveTranscript.innerText += '\n' + line;
-                            }
-                            liveTranscript.scrollTop = liveTranscript.scrollHeight;
+                            liveCommitted = '';
+                            liveTentative = '';
+                            renderLiveTranscript();
+                        } else if (msg.type === 'commit') {
+                            liveCommitted += (liveCommitted ? ' ' : '') + msg.text;
+                            liveTentative = '';
+                            renderLiveTranscript();
+                        } else if (msg.type === 'tentative') {
+                            liveTentative = msg.text || '';
+                            renderLiveTranscript();
                         } else if (msg.type === 'done') {
                             teardownLiveStreaming();
                         } else if (msg.type === 'error') {

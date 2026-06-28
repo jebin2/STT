@@ -42,6 +42,66 @@ def _release_model(model_name, device):
             del _MODEL_CACHE[key]
 
 
+class _HypothesisBuffer:
+    """LocalAgreement-2 commit policy.
+
+    Each window re-transcribes the unconfirmed audio. A word is only *committed*
+    once two consecutive windows agree on it (longest common prefix); everything
+    after the agreed prefix stays *tentative* and may be revised by the next
+    window. This removes the duplicated/unstable output that naive overlapping
+    re-transcription produces. (Macháček et al., whisper_streaming.)
+    """
+
+    def __init__(self):
+        self.committed = []   # confirmed (start, end, word)
+        self.buffer = []      # previous window's tentative tail
+        self.new = []
+        self.last_committed_time = 0.0
+
+    def insert(self, words):
+        # words: list of (start, end, text) in absolute seconds.
+        self.new = [w for w in words if w[0] > self.last_committed_time - 0.1]
+        if self.new and self.committed:
+            # Drop a leading n-gram that repeats the tail we already committed
+            # (whisper sometimes re-emits the previous words verbatim).
+            if abs(self.new[0][0] - self.last_committed_time) < 1.0:
+                cn, nn = len(self.committed), len(self.new)
+                for i in range(1, min(cn, nn, 5) + 1):
+                    tail = " ".join(self.committed[-j][2] for j in range(i, 0, -1))
+                    head = " ".join(self.new[j][2] for j in range(i))
+                    if tail == head:
+                        del self.new[:i]
+                        break
+
+    def flush(self):
+        """Commit the longest common prefix of this window and the last."""
+        commit = []
+        while self.new and self.buffer:
+            if self.new[0][2] == self.buffer[0][2]:
+                commit.append(self.new[0])
+                self.last_committed_time = self.new[0][1]
+                self.buffer.pop(0)
+                self.new.pop(0)
+            else:
+                break
+        self.buffer = self.new
+        self.new = []
+        self.committed.extend(commit)
+        # Only the last few committed words are needed for n-gram dedup.
+        if len(self.committed) > 100:
+            self.committed = self.committed[-100:]
+        return commit
+
+    def complete(self):
+        """Return remaining tentative words as final (no more audio coming)."""
+        rest = self.buffer
+        self.buffer = []
+        return rest
+
+    def tentative_text(self):
+        return " ".join(w[2] for w in self.buffer)
+
+
 class StreamingSTT:
     def __init__(self, model_name="base", device="cpu", sample_rate=16000):
         if model_name not in ALLOWED_MODELS:
@@ -55,9 +115,8 @@ class StreamingSTT:
         # leading samples, so timestamps stay anchored to real audio time
         # instead of drifting after a trim.
         self.buffer_start = 0
-        self.chunk_duration = 5
-        self.stride_duration = 2
-        self.last_segment_end = 0
+        self.min_chunk = 1.0  # seconds of new audio before a window is run
+        self.hyp = _HypothesisBuffer()
         self.is_finalized = False
         # add_audio() runs on the event-loop thread while process()/flush() run
         # in an executor thread. Incoming audio is handed over through this
@@ -92,87 +151,82 @@ class StreamingSTT:
                 self.processed_until -= trim_to
                 self.buffer_start += trim_to
 
+    def _transcribe_words(self, audio, time_offset):
+        """Transcribe audio, returning [(start, end, text), ...] in absolute time."""
+        segments, _ = self.model.transcribe(
+            audio, beam_size=1, vad_filter=True, language="en", word_timestamps=True
+        )
+        words = []
+        for seg in segments:
+            for w in seg.words or []:
+                text = w.word.strip()
+                if text:
+                    words.append((w.start + time_offset, w.end + time_offset, text))
+        return words
+
+    @staticmethod
+    def _as_chunk(words):
+        """Join committed words into a single transcript chunk, or None."""
+        if not words:
+            return None
+        return {
+            "start": round(words[0][0], 2),
+            "end": round(words[-1][1], 2),
+            "text": " ".join(w[2] for w in words),
+        }
+
     def process(self):
         if self.is_finalized:
-            return []
+            return None
 
         self._drain_incoming()
 
-        chunk_samples = self.chunk_duration * self.sample_rate
-        stride_samples = self.stride_duration * self.sample_rate
+        unprocessed = self.buffer[self.processed_until:]
+        if len(unprocessed) < self.min_chunk * self.sample_rate:
+            return None
 
-        if len(self.buffer) - self.processed_until < chunk_samples:
-            return []
-
-        chunk = self.buffer[self.processed_until : self.processed_until + chunk_samples]
         time_offset = (self.buffer_start + self.processed_until) / self.sample_rate
-        self.processed_until += chunk_samples - stride_samples
-        self._trim_buffer()
-
         try:
-            segments, _ = self.model.transcribe(
-                chunk, beam_size=1, vad_filter=True, language="en"
-            )
-            results = []
-            for seg in segments:
-                start = seg.start + time_offset
-                end = seg.end + time_offset
-                text = seg.text.strip()
-                if not text:
-                    continue
-                # Consecutive chunks overlap by stride_duration, so the overlap
-                # region is transcribed twice. Skip segments that fall within
-                # time we've already emitted (small tolerance for boundary jitter).
-                if end <= self.last_segment_end + 0.2:
-                    continue
-                self.last_segment_end = max(self.last_segment_end, end)
-                results.append({
-                    "start": round(start, 2),
-                    "end": round(end, 2),
-                    "text": text,
-                })
-            return results
+            words = self._transcribe_words(unprocessed, time_offset)
         except Exception as e:
             logger.error(f"[StreamingSTT] process error: {e}")
-            return []
+            return None
+
+        self.hyp.insert(words)
+        committed = self.hyp.flush()
+
+        # Advance past the committed audio; tentative words stay unprocessed so
+        # the next window can re-evaluate (and possibly correct) them.
+        if committed:
+            target = int(committed[-1][1] * self.sample_rate) - self.buffer_start
+            self.processed_until = min(max(self.processed_until, target), len(self.buffer))
+            self._trim_buffer()
+
+        return {
+            "commit": self._as_chunk(committed),
+            "tentative": self.hyp.tentative_text(),
+        }
 
     def flush(self):
         if self.is_finalized:
-            return []
+            return None
         self.is_finalized = True
 
         self._drain_incoming()
 
-        remaining = self.buffer[self.processed_until:]
-        if len(remaining) < self.sample_rate * 0.5:
-            return []
-
-        try:
-            segments, _ = self.model.transcribe(
-                remaining, beam_size=1, vad_filter=True, language="en"
-            )
+        unprocessed = self.buffer[self.processed_until:]
+        final = []
+        if len(unprocessed) >= 0.3 * self.sample_rate:
             time_offset = (self.buffer_start + self.processed_until) / self.sample_rate
-            results = []
-            for seg in segments:
-                start = seg.start + time_offset
-                end = seg.end + time_offset
-                text = seg.text.strip()
-                if not text:
-                    continue
-                # The tail still overlaps the last emitted chunk by stride_duration;
-                # drop anything already covered.
-                if end <= self.last_segment_end + 0.2:
-                    continue
-                self.last_segment_end = max(self.last_segment_end, end)
-                results.append({
-                    "start": round(start, 2),
-                    "end": round(end, 2),
-                    "text": text,
-                    })
-            return results
-        except Exception as e:
-            logger.error(f"[StreamingSTT] flush error: {e}")
-            return []
+            try:
+                words = self._transcribe_words(unprocessed, time_offset)
+                self.hyp.insert(words)
+                final = self.hyp.flush()
+            except Exception as e:
+                logger.error(f"[StreamingSTT] flush error: {e}")
+        # No more audio is coming, so commit whatever tentative words remain.
+        final = final + self.hyp.complete()
+        return {"commit": self._as_chunk(final)}
 
     def cleanup(self):
         if self.model is not None:
