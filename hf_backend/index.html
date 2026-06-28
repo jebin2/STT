@@ -933,6 +933,7 @@
         let liveResampleBuf = [];
         let livePreBuffer = [];
         let wsReady = false;
+        let liveFinalizeTimer = null;
         const WS_SAMPLE_RATE = 16000;
 
         function openLiveModal() {
@@ -1031,6 +1032,8 @@
                                 liveTranscript.innerText += '\n' + line;
                             }
                             liveTranscript.scrollTop = liveTranscript.scrollHeight;
+                        } else if (msg.type === 'done') {
+                            teardownLiveStreaming();
                         } else if (msg.type === 'error') {
                             liveTranscript.innerText = '❌ Error: ' + msg.message;
                         }
@@ -1039,11 +1042,11 @@
 
                 liveWs.onerror = () => {
                     liveTranscript.innerText = '❌ WebSocket error. Check if the server is running.';
-                    stopLiveStreaming();
+                    teardownLiveStreaming();
                 };
 
                 liveWs.onclose = () => {
-                    if (isLiveStreaming) stopMicCapture();
+                    teardownLiveStreaming();
                 };
 
                 liveTranscript.innerText = 'Connecting...';
@@ -1068,16 +1071,44 @@
             if (liveAudioCtx) { liveAudioCtx.close().catch(() => {}); liveAudioCtx = null; }
         }
 
-        function stopLiveStreaming() {
+        function resetLiveUI() {
+            startLiveBtn.classList.remove('hidden');
+            stopLiveBtn.classList.add('hidden');
+            stopLiveBtn.disabled = false;
+            liveStatusBadge.classList.add('hidden');
+            liveModelSelect.disabled = false;
+        }
+
+        // Immediate teardown: closes the socket, stops the mic, resets the UI.
+        // Idempotent so it's safe to call from onclose/onerror/done/timeout.
+        function teardownLiveStreaming() {
+            if (liveFinalizeTimer) { clearTimeout(liveFinalizeTimer); liveFinalizeTimer = null; }
             if (liveWs) {
-                liveWs.close();
+                try { liveWs.close(); } catch (e) {}
                 liveWs = null;
             }
             stopMicCapture();
-            startLiveBtn.classList.remove('hidden');
-            stopLiveBtn.classList.add('hidden');
-            liveStatusBadge.classList.add('hidden');
-            liveModelSelect.disabled = false;
+            resetLiveUI();
+        }
+
+        // Graceful stop: stop sending audio but keep the socket open so the
+        // server can flush the trailing segment before we tear down.
+        function stopLiveStreaming() {
+            // Flush the partial resample buffer before stopMicCapture clears it,
+            // so the tail isn't dropped.
+            if (liveWs && liveWs.readyState === WebSocket.OPEN && liveResampleBuf.length > 0) {
+                try { liveWs.send(float32ToInt16(new Float32Array(liveResampleBuf.splice(0))).buffer); } catch (e) {}
+            }
+            stopMicCapture();
+            if (liveWs && liveWs.readyState === WebSocket.OPEN) {
+                try { liveWs.send(JSON.stringify({ type: 'stop' })); } catch (e) {}
+                liveStatusBadge.classList.add('hidden');
+                stopLiveBtn.disabled = true;
+                // Fallback in case the server never replies with 'done'.
+                liveFinalizeTimer = setTimeout(teardownLiveStreaming, 5000);
+            } else {
+                teardownLiveStreaming();
+            }
         }
 
         liveBtn.onclick = openLiveModal;

@@ -719,6 +719,7 @@
         let serverTranscriptionChunks = [];
         let serverWsReady = false;
         let serverPreBuffer = [];
+        let serverFinalizeTimer = null;
         const RESAMPLE_RATE = 16000;
 
         function setServerStatus(text, className) {
@@ -828,6 +829,8 @@
                                 serverTranscriptionChunks.push(chunk);
                             }
                             displayLiveTranscription(serverTranscriptionChunks, false);
+                        } else if (msg.type === 'done') {
+                            finalizeServerClose();
                         } else if (msg.type === 'error') {
                             updateStatus('❌ Server error: ' + msg.message, 'error');
                         }
@@ -844,12 +847,10 @@
                 };
 
                 ws.onclose = () => {
-                    setServerStatus('Disconnected', 'disconnected');
-                    setServerConnected(false);
                     if (isServerStreaming) {
                         stopServerStreaming();
                     }
-                    updateStatus('⚠️ Disconnected from server', 'loading');
+                    finalizeServerClose();
                 };
 
             } catch (err) {
@@ -859,13 +860,38 @@
         }
 
         function disconnectFromServer() {
-            serverWsReady = false;
-            serverPreBuffer = [];
+            const wasOpen = ws && ws.readyState === WebSocket.OPEN;
+            // Flush any partial resample buffer so the tail isn't dropped, then
+            // ask the server to finalize. Must happen before stopServerStreaming
+            // clears resampleBuffer.
+            if (wasOpen && resampleBuffer.length > 0) {
+                try {
+                    ws.send(float32ToInt16(new Float32Array(resampleBuffer.splice(0))).buffer);
+                } catch (e) {}
+            }
             if (isServerStreaming) {
                 stopServerStreaming();
             }
+            serverWsReady = false;
+            serverPreBuffer = [];
+            if (wasOpen) {
+                // Keep the socket open to receive the trailing transcripts and the
+                // server's 'done' before closing. Fall back to a hard close.
+                try { ws.send(JSON.stringify({ type: 'stop' })); } catch (e) {}
+                setServerStatus('Finalizing...', 'connecting');
+                updateStatus('⏳ Finalizing transcription...', 'loading');
+                serverFinalizeTimer = setTimeout(finalizeServerClose, 5000);
+            } else {
+                finalizeServerClose();
+            }
+        }
+
+        // Idempotent: closes the socket and resets the server UI. Safe to call
+        // from the 'done' message, onclose, or the finalize timeout.
+        function finalizeServerClose() {
+            if (serverFinalizeTimer) { clearTimeout(serverFinalizeTimer); serverFinalizeTimer = null; }
             if (ws) {
-                ws.close();
+                try { ws.close(); } catch (e) {}
                 ws = null;
             }
             setServerConnected(false);

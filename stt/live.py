@@ -35,6 +35,9 @@ class LiveSTTProcessor(BaseSTT):
         chunk_samples = chunk_duration * self.sample_rate
         stride_samples = stride_duration * self.sample_rate
         processed_until = 0
+        # Absolute sample index of buffer[0]; grows as we trim leading samples so
+        # timestamps stay anchored to real audio time after a trim.
+        buffer_start = 0
 
         stream = sd.InputStream(
             callback=self._audio_callback,
@@ -56,14 +59,16 @@ class LiveSTTProcessor(BaseSTT):
 
                 if len(buffer) - processed_until >= chunk_samples:
                     chunk = buffer[processed_until : processed_until + chunk_samples]
+                    # Offset is the chunk's real start time; capture it before
+                    # advancing processed_until past this chunk.
+                    time_offset = (buffer_start + processed_until) / self.sample_rate
                     processed_until += chunk_samples - stride_samples
 
                     if processed_until > self.sample_rate * 120:
                         trim = processed_until - self.sample_rate * 30
                         buffer = buffer[trim:]
                         processed_until -= trim
-
-                    time_offset = processed_until / self.sample_rate - chunk_duration
+                        buffer_start += trim
 
                     try:
                         segments, _ = self.model.transcribe(chunk, beam_size=1, vad_filter=True)

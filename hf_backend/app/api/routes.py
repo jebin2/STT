@@ -9,10 +9,12 @@ from app.core.config import settings
 from custom_logger import logger_config as logger
 from app.db import crud
 from app.services.worker import start_worker, is_worker_running
-from app.services.streaming import StreamingSTT
+from app.services.streaming import StreamingSTT, ALLOWED_MODELS
 
 router = APIRouter()
 
+# Per-process connection counter. With multiple uvicorn workers each process has
+# its own counter, so the cap is per-worker, not global.
 ACTIVE_WS_CONNECTIONS = 0
 MAX_WS_CONNECTIONS = 4
 
@@ -139,11 +141,23 @@ async def websocket_transcribe(websocket: WebSocket):
         config = json.loads(config_text)
         model_name = config.get("model", "base")
 
-        stt = StreamingSTT(model_name=model_name, device="cpu")
+        if model_name not in ALLOWED_MODELS:
+            await websocket.send_json(
+                {"type": "error", "message": f"Unsupported model: {model_name}"}
+            )
+            await websocket.close()
+            return
+
+        loop = asyncio.get_event_loop()
+        # WhisperModel construction downloads/loads weights synchronously; run it
+        # in an executor so it doesn't block the event loop (and every other
+        # connection) while the model loads.
+        stt = await loop.run_in_executor(
+            None, lambda: StreamingSTT(model_name=model_name, device="cpu")
+        )
         await websocket.send_json({"type": "ready", "sample_rate": stt.sample_rate})
 
         async def bg_process():
-            loop = asyncio.get_event_loop()
             while True:
                 await asyncio.sleep(1.5)
                 try:
@@ -162,8 +176,20 @@ async def websocket_transcribe(websocket: WebSocket):
         task = asyncio.create_task(bg_process())
 
         while True:
-            data = await websocket.receive_bytes()
-            stt.add_audio(data)
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                raise WebSocketDisconnect()
+            if message.get("bytes") is not None:
+                stt.add_audio(message["bytes"])
+            elif message.get("text") is not None:
+                try:
+                    msg = json.loads(message["text"])
+                except (ValueError, TypeError):
+                    continue
+                if msg.get("type") == "stop":
+                    # Client asked to finalize: stop reading and let the finally
+                    # block flush the trailing audio while still connected.
+                    break
 
     except WebSocketDisconnect:
         connected = False
@@ -176,14 +202,18 @@ async def websocket_transcribe(websocket: WebSocket):
             task.cancel()
             try:
                 await task
-            except (asyncio.CancelledError, Exception):
+            except asyncio.CancelledError:
                 pass
+            except Exception as e:
+                logger.error(f"bg_process cleanup error: {e}")
         if stt:
             if connected:
                 try:
                     remaining = stt.flush()
                     for r in remaining:
                         await websocket.send_json({"type": "transcript", **r, "is_final": True})
+                    await websocket.send_json({"type": "done"})
+                    await websocket.close()
                 except Exception:
                     pass
             stt.cleanup()
