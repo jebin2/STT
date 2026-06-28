@@ -272,6 +272,58 @@
             box-shadow: 6px 6px 0px 0px #15803d;
         }
 
+        .live-btn {
+            border: 4px solid #dc2626;
+            border-radius: 12px 8px 14px 10px / 8px 14px 10px 12px;
+            transition: all 0.2s ease;
+            filter: url('#crayon-texture');
+            cursor: pointer;
+            animation: livePulse 2s ease-in-out infinite;
+        }
+
+        .live-btn:hover {
+            transform: scale(1.05) rotate(-1deg);
+            box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        #liveModal .live-transcript {
+            border: 3px dashed #fca5a5 !important;
+            padding: 1.5rem !important;
+            border-radius: 20px !important;
+            font-family: 'Fredoka', sans-serif !important;
+            font-size: 1.3rem !important;
+            font-weight: 500 !important;
+            color: #fff !important;
+            white-space: pre-wrap !important;
+            word-break: break-all !important;
+            line-height: 1.6 !important;
+            filter: url('#crayon-texture');
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        #liveModal select {
+            border: 3px solid #7c3aed;
+            border-radius: 12px;
+            padding: 0.5rem 1rem;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: white;
+            filter: url('#crayon-texture');
+            outline: none;
+        }
+
+        #liveModal select:focus {
+            border-color: #2563eb;
+        }
+
         /* --- Specific UI Elements --- */
         .status-modal-content {
             max-width: 450px;
@@ -420,6 +472,11 @@
                 <div id="healthDot" class="w-4 h-4 rounded-full bg-crayon-green shadow-[0_0_12px_rgba(22,163,74,0.5)]">
                 </div>
                 <span id="healthText" class="text-headline-md text-crayon-green text-2xl">Service Online</span>
+                <button id="liveBtn"
+                    class="hidden items-center gap-2 px-6 py-2 bg-crayon-red text-white text-headline-md font-bold live-btn shadow-md">
+                    <span class="material-symbols-outlined text-3xl">mic</span>
+                    LIVE
+                </button>
                 <div class="text-crayon-orange flex items-center justify-center rotate-[15deg]">
                     <span class="material-symbols-outlined text-4xl">light_mode</span>
                 </div>
@@ -577,6 +634,52 @@
             </div>
             <h2 id="statusMessage" class="text-headline-lg text-crayon-blue mb-2">Uploading...</h2>
             <p id="statusSubMessage" class="text-body-lg text-[#4b5563]">Processing your request, please wait.</p>
+        </div>
+    </div>
+
+    <!-- Live STT Modal -->
+    <div id="liveModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-sketch-bg"></div>
+
+            <span class="material-symbols-outlined modal-decoration text-6xl text-crayon-red top-4 left-4 -rotate-12">mic</span>
+            <span class="material-symbols-outlined modal-decoration text-8xl text-crayon-blue top-12 right-20 opacity-20">cloud</span>
+            <span class="material-symbols-outlined modal-decoration text-4xl text-crayon-orange bottom-10 left-10 rotate-45">star</span>
+            <span class="material-symbols-outlined modal-decoration text-7xl text-crayon-purple bottom-4 right-4 -rotate-6 opacity-40">cloud</span>
+
+            <div class="modal-header">
+                <div class="flex items-center gap-6">
+                    <span class="text-headline-lg text-[#1e1b4b]">🔴 Live STT</span>
+                </div>
+                <button class="close-modal" onclick="closeLiveModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="flex items-center gap-6 mb-6 flex-wrap">
+                    <label class="text-label-sm text-[#4b5563] font-bold">Model:</label>
+                    <select id="liveModelSelect">
+                        <option value="tiny">tiny</option>
+                        <option value="base" selected>base</option>
+                        <option value="small">small</option>
+                        <option value="medium">medium</option>
+                        <option value="large-v3">large-v3</option>
+                    </select>
+                    <button id="startLiveBtn"
+                        class="flex items-center gap-2 px-8 py-3 bg-crayon-green text-white text-headline-md font-bold crayon-button border-crayon-green shadow-md">
+                        <span class="material-symbols-outlined text-3xl">play_arrow</span>
+                        Start
+                    </button>
+                    <button id="stopLiveBtn"
+                        class="hidden items-center gap-2 px-8 py-3 bg-crayon-red text-white text-headline-md font-bold crayon-button border-crayon-red shadow-md">
+                        <span class="material-symbols-outlined text-3xl">stop</span>
+                        Stop
+                    </button>
+                    <div id="liveStatusBadge" class="hidden items-center gap-2 px-4 py-2 bg-crayon-red text-white text-label-sm font-bold rounded-full animate-pulse">
+                        <span class="material-symbols-outlined text-2xl">mic</span>
+                        RECORDING
+                    </div>
+                </div>
+                <div id="liveTranscript" class="live-transcript">Waiting to start...</div>
+            </div>
         </div>
     </div>
 
@@ -807,6 +910,180 @@
             UI.modalTitle.innerText = "API Documentation";
             UI.resultModal.classList.add('active');
         };
+
+        // --- Live STT (WebSocket) ---
+        const liveBtn = document.getElementById('liveBtn');
+        const liveModal = document.getElementById('liveModal');
+        const liveModelSelect = document.getElementById('liveModelSelect');
+        const startLiveBtn = document.getElementById('startLiveBtn');
+        const stopLiveBtn = document.getElementById('stopLiveBtn');
+        const liveTranscript = document.getElementById('liveTranscript');
+        const liveStatusBadge = document.getElementById('liveStatusBadge');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('live') === 'true') {
+            liveBtn.classList.remove('hidden');
+        }
+
+        let liveWs = null;
+        let liveMicStream = null;
+        let liveAudioCtx = null;
+        let liveProcessor = null;
+        let isLiveStreaming = false;
+        let liveResampleBuf = [];
+        let livePreBuffer = [];
+        let wsReady = false;
+        const WS_SAMPLE_RATE = 16000;
+
+        function openLiveModal() {
+            liveModal.classList.add('active');
+            liveTranscript.innerText = 'Select a model and click Start.';
+            startLiveBtn.classList.remove('hidden');
+            stopLiveBtn.classList.add('hidden');
+            liveStatusBadge.classList.add('hidden');
+        }
+
+        function closeLiveModal() {
+            stopLiveStreaming();
+            liveModal.classList.remove('active');
+        }
+
+        function float32ToInt16(float32) {
+            const int16 = new Int16Array(float32.length);
+            for (let i = 0; i < float32.length; i++) {
+                const s = Math.max(-1, Math.min(1, float32[i]));
+                int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            return int16;
+        }
+
+        function resampleAndSend(floatData, nativeRate) {
+            const ratio = WS_SAMPLE_RATE / nativeRate;
+            const outLen = Math.floor(floatData.length * ratio);
+            for (let outPos = 0; outPos < outLen; outPos++) {
+                const srcPos = outPos / ratio;
+                const idx = Math.floor(srcPos);
+                const frac = srcPos - idx;
+                const next = Math.min(idx + 1, floatData.length - 1);
+                liveResampleBuf.push(floatData[idx] * (1 - frac) + floatData[next] * frac);
+            }
+            const targetSize = Math.floor(WS_SAMPLE_RATE * 0.4);
+            while (liveResampleBuf.length >= targetSize) {
+                const chunk = liveResampleBuf.splice(0, targetSize);
+                const int16 = float32ToInt16(new Float32Array(chunk));
+                if (liveWs && liveWs.readyState === WebSocket.OPEN) {
+                    liveWs.send(int16.buffer);
+                }
+            }
+        }
+
+        async function startLiveStreaming() {
+            try {
+                // Set up mic + AudioContext in the click handler (user gesture)
+                liveAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                liveMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const source = liveAudioCtx.createMediaStreamSource(liveMicStream);
+
+                liveProcessor = liveAudioCtx.createScriptProcessor(4096, 1, 1);
+                liveProcessor.onaudioprocess = (e) => {
+                    if (!isLiveStreaming) return;
+                    const data = e.inputBuffer.getChannelData(0);
+                    if (wsReady) {
+                        resampleAndSend(data, liveAudioCtx.sampleRate);
+                    } else {
+                        livePreBuffer.push(...data);
+                    }
+                };
+
+                source.connect(liveProcessor);
+                liveProcessor.connect(liveAudioCtx.destination);
+                isLiveStreaming = true;
+
+                // Connect WebSocket
+                const model = liveModelSelect.value;
+                const wsUrl = `${window.location.origin.replace(/^http/, 'ws')}/ws/transcribe`;
+
+                liveWs = new WebSocket(wsUrl);
+                liveWs.binaryType = 'arraybuffer';
+
+                liveWs.onopen = () => {
+                    liveWs.send(JSON.stringify({ model }));
+                };
+
+                liveWs.onmessage = (e) => {
+                    try {
+                        const msg = JSON.parse(e.data);
+                        if (msg.type === 'ready') {
+                            wsReady = true;
+                            // Flush pre-buffered audio
+                            if (livePreBuffer.length > 0) {
+                                resampleAndSend(
+                                    new Float32Array(livePreBuffer.splice(0)),
+                                    liveAudioCtx.sampleRate
+                                );
+                            }
+                            liveTranscript.innerText = '🎤 Listening...';
+                        } else if (msg.type === 'transcript') {
+                            const line = `[${msg.start}s → ${msg.end}s] ${msg.text}`;
+                            if (liveTranscript.innerText === '🎤 Listening...') {
+                                liveTranscript.innerText = line;
+                            } else {
+                                liveTranscript.innerText += '\n' + line;
+                            }
+                            liveTranscript.scrollTop = liveTranscript.scrollHeight;
+                        } else if (msg.type === 'error') {
+                            liveTranscript.innerText = '❌ Error: ' + msg.message;
+                        }
+                    } catch (e) { /* ignore non-JSON */ }
+                };
+
+                liveWs.onerror = () => {
+                    liveTranscript.innerText = '❌ WebSocket error. Check if the server is running.';
+                    stopLiveStreaming();
+                };
+
+                liveWs.onclose = () => {
+                    if (isLiveStreaming) stopMicCapture();
+                };
+
+                liveTranscript.innerText = 'Connecting...';
+                startLiveBtn.classList.add('hidden');
+                stopLiveBtn.classList.remove('hidden');
+                liveStatusBadge.classList.remove('hidden');
+                liveModelSelect.disabled = true;
+
+            } catch (err) {
+                liveTranscript.innerText = '❌ Error: ' + err.message;
+                stopLiveStreaming();
+            }
+        }
+
+        function stopMicCapture() {
+            isLiveStreaming = false;
+            wsReady = false;
+            livePreBuffer = [];
+            liveResampleBuf = [];
+            if (liveProcessor) { liveProcessor.disconnect(); liveProcessor = null; }
+            if (liveMicStream) { liveMicStream.getTracks().forEach(t => t.stop()); liveMicStream = null; }
+            if (liveAudioCtx) { liveAudioCtx.close().catch(() => {}); liveAudioCtx = null; }
+        }
+
+        function stopLiveStreaming() {
+            if (liveWs) {
+                liveWs.close();
+                liveWs = null;
+            }
+            stopMicCapture();
+            startLiveBtn.classList.remove('hidden');
+            stopLiveBtn.classList.add('hidden');
+            liveStatusBadge.classList.add('hidden');
+            liveModelSelect.disabled = false;
+        }
+
+        liveBtn.onclick = openLiveModal;
+        liveModal.onclick = (e) => { if (e.target === liveModal) closeLiveModal(); };
+        startLiveBtn.onclick = () => { isLiveStreaming = true; startLiveStreaming(); };
+        stopLiveBtn.onclick = stopLiveStreaming;
 
         // --- Lifecycle ---
         loadTasks();

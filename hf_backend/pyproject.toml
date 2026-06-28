@@ -8,12 +8,15 @@ version = "2.0.0"
 description = "FastAPI backend for STT"
 dependencies = [
     "fastapi",
-    "uvicorn",
+    "uvicorn[standard]",
     "aiosqlite",
     "aiofiles",
     "python-multipart",
+    "numpy",
+    "websockets",
     "custom_logger @ git+https://github.com/jebin2/custom_logger.git",
-    "stt-runner[parakeet] @ git+https://github.com/jebin2/STT.git"
+    "stt-runner[parakeet] @ git+https://github.com/jebin2/STT.git",
+    "faster-whisper",
 ]
 
 [project.scripts]

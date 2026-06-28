@@ -92,6 +92,18 @@ def initiate(args):
 	result = STT_ENGINE.transcribe(args)
 	return result
 
+def live_mode(args):
+	"""Run in live microphone transcription mode."""
+	from .live import LiveSTTProcessor
+	from .common import get_device
+
+	model_name = args.model or "base"
+	device = get_device()
+	print(f"Starting live STT (model: {model_name}, device: {device})")
+
+	engine = LiveSTTProcessor(model_name=model_name, device=device)
+	engine.start()
+
 def main():
 	"""Main entry point."""
 	parser = argparse.ArgumentParser(
@@ -110,10 +122,17 @@ def main():
 		"--model",
 		help="model name"
 	)
+	parser.add_argument(
+		"--live",
+		action="store_true",
+		help="Run in live microphone transcription mode"
+	)
 	
 	args = parser.parse_args()
 
-	if args.server_mode:
+	if args.live:
+		live_mode(args)
+	elif args.server_mode:
 		server_mode(args)
 	else:
 		if not args.input:

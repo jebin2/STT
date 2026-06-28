@@ -233,6 +233,122 @@
             }
         }
 
+        .btn-live {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+
+        .btn-live:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        .btn-live.active {
+            background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%);
+        }
+
+        .btn-live.active:hover:not(:disabled) {
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+        }
+
+        .live-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #dc3545;
+            color: white;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85em;
+            animation: livePulse 1.5s ease-in-out infinite;
+        }
+
+        .live-indicator.active {
+            display: inline-flex;
+        }
+
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .section-divider {
+            border: none;
+            border-top: 1px solid #e9ecef;
+            margin: 20px 0;
+        }
+
+        .server-config {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+        }
+
+        .server-config label {
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+        }
+
+        .server-config input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 0.9em;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .server-config input[type="text"]:focus {
+            border-color: #667eea;
+        }
+
+        .server-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .server-status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .server-status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .server-status.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .btn-connect {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-connect:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4);
+        }
+
+        .btn-disconnect {
+            background: #6c757d;
+            color: white;
+        }
+
         .info-box {
             background: #e7f3ff;
             border-left: 4px solid #2196F3;
@@ -280,6 +396,24 @@
             </div>
             <button id="start-recording" class="btn-primary" disabled>🎤 Start Recording</button>
             <button id="stop-recording" class="btn-danger" disabled>⏹️ Stop Recording</button>
+        </div>
+
+        <hr class="section-divider">
+
+        <h3 style="margin: 0 0 10px 0; color: #333;">🔴 Server Live STT</h3>
+
+        <div class="server-config">
+            <label for="backend-url">Backend:</label>
+            <input type="text" id="backend-url" value="ws://localhost:7860/ws/transcribe" placeholder="ws://host:port/ws/transcribe">
+            <button id="connect-server" class="btn-connect">🔗 Connect</button>
+            <button id="disconnect-server" class="btn-disconnect" disabled>🔌 Disconnect</button>
+            <span id="server-status" class="server-status disconnected">Disconnected</span>
+        </div>
+
+        <div class="controls">
+            <button id="start-server-live" class="btn-live" disabled>🎤 Start Streaming</button>
+            <button id="stop-server-live" class="btn-danger" disabled>⏹️ Stop Streaming</button>
+            <span id="server-live-indicator" class="live-indicator">● LIVE</span>
         </div>
 
         <div class="progress-container" id="progress-container">
@@ -517,40 +651,7 @@
             if (isComplete) {
                 const fullText = chunks.map(c => c.text).join(' ');
                 const jsonOutput = { text: fullText, chunks: chunks };
-
-                document.getElementById('download-json-btn')?.remove();
-                document.getElementById('copy-json-btn')?.remove();
-
-                const downloadBtn = document.createElement('button');
-                downloadBtn.id = 'download-json-btn';
-                downloadBtn.textContent = '📥 Download JSON';
-                downloadBtn.className = 'btn-primary';
-                downloadBtn.style.cssText = 'margin-top: 15px; margin-right: 10px;';
-                downloadBtn.onclick = () => {
-                    const blob = new Blob([JSON.stringify(jsonOutput, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'transcription-timestamps.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                };
-
-                const copyBtn = document.createElement('button');
-                copyBtn.id = 'copy-json-btn';
-                copyBtn.textContent = '📋 Copy JSON';
-                copyBtn.className = 'btn-secondary';
-                copyBtn.style.marginTop = '15px';
-                copyBtn.onclick = () => {
-                    navigator.clipboard.writeText(JSON.stringify(jsonOutput, null, 2));
-                    copyBtn.textContent = '✅ Copied!';
-                    setTimeout(() => { copyBtn.textContent = '📋 Copy JSON'; }, 2000);
-                };
-
-                transcriptionEl.after(copyBtn);
-                transcriptionEl.after(downloadBtn);
+                addDownloadCopyButtons(jsonOutput);
             }
         }
 
@@ -599,6 +700,287 @@
                 updateStatus('Processing recording...', 'loading');
             }
         });
+
+        // --- Server Live STT (WebSocket) ---
+        const backendUrlInput = document.getElementById('backend-url');
+        const connectServerBtn = document.getElementById('connect-server');
+        const disconnectServerBtn = document.getElementById('disconnect-server');
+        const serverStatusEl = document.getElementById('server-status');
+        const startServerLiveBtn = document.getElementById('start-server-live');
+        const stopServerLiveBtn = document.getElementById('stop-server-live');
+        const serverLiveIndicator = document.getElementById('server-live-indicator');
+
+        let ws = null;
+        let serverLiveCtx = null;
+        let serverLiveMicStream = null;
+        let serverLiveSource = null;
+        let serverLiveProcessor = null;
+        let isServerStreaming = false;
+        let serverTranscriptionChunks = [];
+        let serverWsReady = false;
+        let serverPreBuffer = [];
+        const RESAMPLE_RATE = 16000;
+
+        function setServerStatus(text, className) {
+            serverStatusEl.textContent = text;
+            serverStatusEl.className = 'server-status ' + className;
+        }
+
+        function setServerConnected(connected) {
+            connectServerBtn.disabled = connected;
+            disconnectServerBtn.disabled = !connected;
+            startServerLiveBtn.disabled = !connected;
+            stopServerLiveBtn.disabled = true;
+            serverLiveIndicator.classList.remove('active');
+            if (!connected) {
+                setServerStatus('Disconnected', 'disconnected');
+            }
+        }
+
+        function float32ToInt16(float32) {
+            const int16 = new Int16Array(float32.length);
+            for (let i = 0; i < float32.length; i++) {
+                const s = Math.max(-1, Math.min(1, float32[i]));
+                int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            return int16;
+        }
+
+        function addDownloadCopyButtons(jsonOutput) {
+            document.getElementById('download-json-btn')?.remove();
+            document.getElementById('copy-json-btn')?.remove();
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.id = 'download-json-btn';
+            downloadBtn.textContent = '📥 Download JSON';
+            downloadBtn.className = 'btn-primary';
+            downloadBtn.style.cssText = 'margin-top: 15px; margin-right: 10px;';
+            downloadBtn.onclick = () => {
+                const blob = new Blob([JSON.stringify(jsonOutput, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'transcription-timestamps.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            const copyBtn = document.createElement('button');
+            copyBtn.id = 'copy-json-btn';
+            copyBtn.textContent = '📋 Copy JSON';
+            copyBtn.className = 'btn-secondary';
+            copyBtn.style.marginTop = '15px';
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(JSON.stringify(jsonOutput, null, 2));
+                copyBtn.textContent = '✅ Copied!';
+                setTimeout(() => { copyBtn.textContent = '📋 Copy JSON'; }, 2000);
+            };
+
+            transcriptionEl.after(copyBtn);
+            transcriptionEl.after(downloadBtn);
+        }
+
+        async function connectToServer() {
+            const url = backendUrlInput.value.trim();
+            if (!url) {
+                updateStatus('❌ Enter a valid WebSocket URL', 'error');
+                return;
+            }
+
+            setServerStatus('Connecting...', 'connecting');
+            updateStatus('🔗 Connecting to server...', 'loading');
+
+            try {
+                ws = new WebSocket(url);
+                ws.binaryType = 'arraybuffer';
+
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ model: 'base' }));
+                    setServerStatus('Connected', 'connected');
+                    setServerConnected(true);
+                    updateStatus('✅ Connected to server. Ready for live STT.', 'ready');
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'ready') {
+                            serverWsReady = true;
+                            if (serverPreBuffer.length > 0) {
+                                resampleAndSend(
+                                    new Float32Array(serverPreBuffer.splice(0)),
+                                    serverLiveCtx.sampleRate
+                                );
+                            }
+                            console.log('Server ready, sample rate:', msg.sample_rate);
+                        } else if (msg.type === 'transcript') {
+                            const chunk = {
+                                text: msg.text,
+                                timestamp: { start: msg.start, end: msg.end }
+                            };
+                            const isDup = serverTranscriptionChunks.some(existing =>
+                                Math.abs(existing.timestamp.start - chunk.timestamp.start) < 0.3 &&
+                                existing.text === chunk.text
+                            );
+                            if (!isDup) {
+                                serverTranscriptionChunks.push(chunk);
+                            }
+                            displayLiveTranscription(serverTranscriptionChunks, false);
+                        } else if (msg.type === 'error') {
+                            updateStatus('❌ Server error: ' + msg.message, 'error');
+                        }
+                    } catch (e) {
+                        console.warn('Non-JSON message:', event.data);
+                    }
+                };
+
+                ws.onerror = (err) => {
+                    console.error('WebSocket error:', err);
+                    updateStatus('❌ WebSocket error', 'error');
+                    setServerStatus('Error', 'disconnected');
+                    setServerConnected(false);
+                };
+
+                ws.onclose = () => {
+                    setServerStatus('Disconnected', 'disconnected');
+                    setServerConnected(false);
+                    if (isServerStreaming) {
+                        stopServerStreaming();
+                    }
+                    updateStatus('⚠️ Disconnected from server', 'loading');
+                };
+
+            } catch (err) {
+                updateStatus('❌ Connection failed: ' + err.message, 'error');
+                setServerStatus('Error', 'disconnected');
+            }
+        }
+
+        function disconnectFromServer() {
+            serverWsReady = false;
+            serverPreBuffer = [];
+            if (isServerStreaming) {
+                stopServerStreaming();
+            }
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            setServerConnected(false);
+            setServerStatus('Disconnected', 'disconnected');
+            updateStatus('🔌 Disconnected', 'loading');
+        }
+
+        async function startServerStreaming() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                updateStatus('❌ Not connected to server', 'error');
+                return;
+            }
+
+            isServerStreaming = true;
+            serverTranscriptionChunks = [];
+
+            try {
+                serverLiveCtx = new (window.AudioContext || window.webkitAudioContext)();
+                serverLiveMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                serverLiveSource = serverLiveCtx.createMediaStreamSource(serverLiveMicStream);
+
+                serverLiveProcessor = serverLiveCtx.createScriptProcessor(4096, 1, 1);
+                serverLiveProcessor.onaudioprocess = (e) => {
+                    if (!isServerStreaming || !ws || ws.readyState !== WebSocket.OPEN) return;
+                    const floatData = e.inputBuffer.getChannelData(0);
+                    if (serverWsReady) {
+                        resampleAndSend(floatData, serverLiveCtx.sampleRate);
+                    } else {
+                        serverPreBuffer.push(...floatData);
+                    }
+                };
+
+                serverLiveSource.connect(serverLiveProcessor);
+                serverLiveProcessor.connect(serverLiveCtx.destination);
+
+                startServerLiveBtn.disabled = true;
+                stopServerLiveBtn.disabled = false;
+                serverLiveIndicator.classList.add('active');
+
+                transcriptionEl.innerHTML = '<div style="color: #666; font-style: italic;">🎤 Streaming to server — speak now...</div>';
+                updateStatus('🔴 Streaming to server...', 'loading');
+                document.getElementById('download-json-btn')?.remove();
+                document.getElementById('copy-json-btn')?.remove();
+
+            } catch (err) {
+                isServerStreaming = false;
+                updateStatus('❌ Microphone error: ' + err.message, 'error');
+                startServerLiveBtn.disabled = false;
+                stopServerLiveBtn.disabled = true;
+                serverLiveIndicator.classList.remove('active');
+            }
+        }
+
+        let resampleBuffer = [];
+        let resampleBufferTargetSize = Math.floor(RESAMPLE_RATE * 0.5);
+
+        async function resampleAndSend(floatData, nativeRate) {
+            const ratio = RESAMPLE_RATE / nativeRate;
+            const outLen = Math.floor(floatData.length * ratio);
+            for (let outPos = 0; outPos < outLen; outPos++) {
+                const srcPos = outPos / ratio;
+                const idx = Math.floor(srcPos);
+                const frac = srcPos - idx;
+                const next = Math.min(idx + 1, floatData.length - 1);
+                resampleBuffer.push(floatData[idx] * (1 - frac) + floatData[next] * frac);
+            }
+
+            while (resampleBuffer.length >= resampleBufferTargetSize) {
+                const chunk = resampleBuffer.splice(0, resampleBufferTargetSize);
+                const int16 = float32ToInt16(new Float32Array(chunk));
+                try {
+                    ws.send(int16.buffer);
+                } catch (e) {
+                    console.error('Send error:', e);
+                }
+            }
+        }
+
+        function stopServerStreaming() {
+            isServerStreaming = false;
+            serverWsReady = false;
+            serverPreBuffer = [];
+            resampleBuffer = [];
+
+            if (serverLiveProcessor) {
+                serverLiveProcessor.disconnect();
+                serverLiveProcessor = null;
+            }
+            if (serverLiveMicStream) {
+                serverLiveMicStream.getTracks().forEach(t => t.stop());
+                serverLiveMicStream = null;
+            }
+            if (serverLiveCtx) {
+                serverLiveCtx.close().catch(() => {});
+                serverLiveCtx = null;
+            }
+
+            startServerLiveBtn.disabled = false;
+            stopServerLiveBtn.disabled = true;
+            serverLiveIndicator.classList.remove('active');
+
+            if (serverTranscriptionChunks.length > 0) {
+                const fullText = serverTranscriptionChunks.map(c => c.text).join(' ');
+                displayLiveTranscription(serverTranscriptionChunks, true);
+                updateStatus('✅ Live transcription complete!', 'ready');
+            } else {
+                transcriptionEl.textContent = 'No speech detected.';
+                updateStatus('⚠️ No speech detected', 'error');
+            }
+        }
+
+        connectServerBtn.addEventListener('click', connectToServer);
+        disconnectServerBtn.addEventListener('click', disconnectFromServer);
+        startServerLiveBtn.addEventListener('click', startServerStreaming);
+        stopServerLiveBtn.addEventListener('click', stopServerStreaming);
 
         window.onload = loadModel;
     </script>

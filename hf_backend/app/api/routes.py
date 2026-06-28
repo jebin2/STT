@@ -1,14 +1,20 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 import os
 import uuid
+import json
+import asyncio
 import aiofiles
 from app.core.config import settings
 from custom_logger import logger_config as logger
 from app.db import crud
 from app.services.worker import start_worker, is_worker_running
+from app.services.streaming import StreamingSTT
 
 router = APIRouter()
+
+ACTIVE_WS_CONNECTIONS = 0
+MAX_WS_CONNECTIONS = 4
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in settings.ALLOWED_EXTENSIONS
@@ -106,5 +112,80 @@ async def health():
     return {
         'status': 'healthy',
         'service': 'stt-backend',
-        'worker_running': is_worker_running()
+        'worker_running': is_worker_running(),
+        'ws_connections': ACTIVE_WS_CONNECTIONS,
     }
+
+@router.websocket("/ws/transcribe")
+async def websocket_transcribe(websocket: WebSocket):
+    global ACTIVE_WS_CONNECTIONS
+
+    if ACTIVE_WS_CONNECTIONS >= MAX_WS_CONNECTIONS:
+        await websocket.accept()
+        await websocket.send_json({"type": "error", "message": "Server busy, try again later"})
+        await websocket.close()
+        return
+
+    await websocket.accept()
+    ACTIVE_WS_CONNECTIONS += 1
+    logger.info(f"WebSocket connected ({ACTIVE_WS_CONNECTIONS}/{MAX_WS_CONNECTIONS})")
+
+    stt = None
+    task = None
+    connected = True
+
+    try:
+        config_text = await websocket.receive_text()
+        config = json.loads(config_text)
+        model_name = config.get("model", "base")
+
+        stt = StreamingSTT(model_name=model_name, device="cpu")
+        await websocket.send_json({"type": "ready", "sample_rate": stt.sample_rate})
+
+        async def bg_process():
+            loop = asyncio.get_event_loop()
+            while True:
+                await asyncio.sleep(1.5)
+                try:
+                    results = await loop.run_in_executor(None, stt.process)
+                    for r in results:
+                        try:
+                            await websocket.send_json({"type": "transcript", **r})
+                        except Exception:
+                            return
+                except asyncio.CancelledError:
+                    return
+                except Exception as e:
+                    logger.error(f"bg_process error: {e}")
+                    return
+
+        task = asyncio.create_task(bg_process())
+
+        while True:
+            data = await websocket.receive_bytes()
+            stt.add_audio(data)
+
+    except WebSocketDisconnect:
+        connected = False
+        logger.info("WebSocket disconnected")
+    except Exception as e:
+        connected = False
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        if task:
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+        if stt:
+            if connected:
+                try:
+                    remaining = stt.flush()
+                    for r in remaining:
+                        await websocket.send_json({"type": "transcript", **r, "is_final": True})
+                except Exception:
+                    pass
+            stt.cleanup()
+        ACTIVE_WS_CONNECTIONS -= 1
+        logger.info(f"WebSocket closed ({ACTIVE_WS_CONNECTIONS}/{MAX_WS_CONNECTIONS})")
